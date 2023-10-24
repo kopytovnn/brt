@@ -35,7 +35,7 @@ private:
     const float Cbf = 5411.0f;
     const float Cbr = 2650.0f;
     const float Cx = 20000.0f;
-    const float Iz = 134.0f;  
+    const float Iz = 134.0f;
     float ar = 0.0f;
     float af = 0.0f;
 
@@ -67,14 +67,14 @@ private:
         if (ar != ar) {
             return 0.0f;
         }
-        return - Cx * ar;
+        return -Cx * ar;
     }
 
     float Ffy() {
         if (af != af) {
             return 0.0f;
         }
-        return - Cx * af;
+        return -Cx * af;
     }
 
     float Fx() {
@@ -85,7 +85,7 @@ private:
 
     float Fy() {
         return -Frrf() * sin(instant.steeringAngle) - Fdrag() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle)+ Fry() + Ffy() * cos(instant.steeringAngle);
+            - Fbf() * sin(instant.steeringAngle) + Fry() + Ffy() * cos(instant.steeringAngle);
     }
 
     float F() {
@@ -131,23 +131,23 @@ public:
         float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
         float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
         af = atan(vn / ve);
-        
+
         float angularAcceleration = L() / Iz;
 
         float vx_p1 = old.vx + instant.throttle * cos(instant.steeringAngle) * dt;
         float vy_p1 = old.vy + instant.throttle * sin(instant.steeringAngle) * dt;
 
-        float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * cos(old.yaw)) * dt;
-        float Y_p1 = old.Y + (old.vx * cos(old.yaw) - old.vy * cos(old.yaw)) * dt;
+        float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
+        float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
+
+
 
         float yaw_p1 = old.yaw + old.r * dt;
         float r_p1 = old.r + angularAcceleration * dt;
 
-
-
         t += dt;
         old = { X_p1, Y_p1, yaw_p1, vx_p1, vy_p1, r_p1 };
-    }    
+    }
 };
 
 
