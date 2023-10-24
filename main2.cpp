@@ -67,14 +67,14 @@ private:
         if (ar != ar) {
             return 0.0f;
         }
-        return Cx * ar;
+        return - Cx * ar;
     }
 
     float Ffy() {
         if (af != af) {
             return 0.0f;
         }
-        return Cx * af;
+        return - Cx * af;
     }
 
     float Fx() {
