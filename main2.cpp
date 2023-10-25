@@ -67,7 +67,7 @@ private:
         if (ar != ar) {
             return 0.0f;
         }
-        return -Cx * ar;
+        return Cx * ar;
     }
 
     float Ffy() {
