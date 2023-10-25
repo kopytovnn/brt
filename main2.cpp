@@ -137,6 +137,9 @@ public:
         float vx_p1 = old.vx + instant.throttle * cos(instant.steeringAngle) * dt;
         float vy_p1 = old.vy + instant.throttle * sin(instant.steeringAngle) * dt;
 
+        //cout << old.yaw << endl;
+        //cout << old.X << " " << old.vx << " * " << cos(old.yaw) << endl;
+        //cout << old.vy << " * " << sin(old.yaw) << endl;
         float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
 
