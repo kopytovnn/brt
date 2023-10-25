@@ -74,38 +74,16 @@ private:
         if (af != af) {
             return 0.0f;
         }
-        return -Cx * af;
-    }
-
-    float Fx() {
-        return Fdrv() - Frrr() - Frrf() * cos(instant.steeringAngle)
-            - Fdrag() * cos(instant.steeringAngle) - Fbr()
-            - Fbf() * cos(instant.steeringAngle);
-    }
-
-    float Fy() {
-        return -Frrf() * sin(instant.steeringAngle) - Fdrag() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle) + Fry() + Ffy() * cos(instant.steeringAngle);
-    }
-
-    float F() {
-        return sqrt(Fx() * Fx() + Fy() * Fy());
-    }
-
-    float Rr() {  // Distance between ICR & rear wheel
-        return (lr + lf) / tan(instant.steeringAngle);
-    }
-
-    float Rс() {  // Distance between ICR & center of mass
-        return sqrt(Rr() * Rr() + lr * lr);
-    }
-
-    float Rf() {
-        return (lr + lf) / sin(instant.steeringAngle);
+        return Cx * af;
     }
 
     float L() {  // Angular momentum
-        return -lr * Fry() + lf * (Ffy() - Fbf() - Frrf()) * cos(instant.steeringAngle);
+        cout << "\tFfy() = " << Ffy() << endl;
+        cout << "\tFbf() = " << Fbf() << endl;
+        cout << "\tFrrf() = " << Frrf() << endl;
+        cout << "\tFry() = " << Fry() << endl;
+        cout << "\tFrrf() = " << Frrf() << endl;
+        return -lr * Fry() + lf * (Ffy() - Fbf() - Frrf()) * sin(instant.steeringAngle);
     }
 
 public:
@@ -122,28 +100,23 @@ public:
         instant.steeringAngle = steeringAngle;
         instant.brakes = brakes;
 
-        float vrx = old.vx * Rr() / Rс();
-        float vry = old.vy * Rr() / Rс();
+        float vrx = old.vx;
+        float vry = old.vy - old.r * lr;
         ar = atan(vry / vrx);
 
-        float vfx = old.vx * Rf() / Rс();
-        float vfy = old.vy * Rf() / Rс();
+        float vfx = old.vx;
+        float vfy = old.vy + old.r * lf;
         float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
         float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
         af = atan(vn / ve);
 
         float angularAcceleration = L() / Iz;
-
+         
         float vx_p1 = old.vx + instant.throttle * cos(instant.steeringAngle) * dt;
         float vy_p1 = old.vy + instant.throttle * sin(instant.steeringAngle) * dt;
 
-        //cout << old.yaw << endl;
-        //cout << old.X << " " << old.vx << " * " << cos(old.yaw) << endl;
-        //cout << old.vy << " * " << sin(old.yaw) << endl;
         float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
-
-
 
         float yaw_p1 = old.yaw + old.r * dt;
         float r_p1 = old.r + angularAcceleration * dt;
