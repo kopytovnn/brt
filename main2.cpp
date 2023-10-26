@@ -77,6 +77,33 @@ private:
         return Cx * af;
     }
 
+    float Flateral() {
+        float k = cos(atan(old.vy / old.vx));
+        float Faero = 0.0f;
+        if (k == k) {
+            Faero = Fdrag() * k;
+        }
+        return -Frrr() - Fbr() + Fdrv()
+            - Faero
+            - Fbf() * cos(instant.steeringAngle) - Frrf() * cos(instant.steeringAngle) - Ffy() * sin(instant.steeringAngle);
+    }
+
+    float Ftransversal() {
+        float k = sin(atan(old.vy / old.vx));
+        float Faero = 0.0f;
+        if (k == k) {
+            Faero = Fdrag() * k;
+        }
+        return Fry() - Faero - (Fbf() + Frrf()) * sin(instant.steeringAngle) + Ffy() * cos(instant.steeringAngle);
+    }
+
+    float Ftotal() {
+        cout << "\tFlateral() = " << Flateral() << endl;
+        cout << "\tFtransversal() = " << Ftransversal() << endl;
+        return sqrt(pow(Flateral(), 2) + pow(Ftransversal(), 2));
+    }
+
+
     float L() {  // Angular momentum
         cout << "\tFfy() = " << Ffy() << endl;
         cout << "\tFbf() = " << Fbf() << endl;
@@ -111,9 +138,9 @@ public:
         af = atan(vn / ve);
 
         float angularAcceleration = L() / Iz;
-         
-        float vx_p1 = old.vx + instant.throttle * cos(instant.steeringAngle) * dt;
-        float vy_p1 = old.vy + instant.throttle * sin(instant.steeringAngle) * dt;
+        float acceleration = Ftotal() / m;
+        float vx_p1 = old.vx + acceleration * cos(instant.steeringAngle) * dt;
+        float vy_p1 = old.vy + acceleration * sin(instant.steeringAngle) * dt;
 
         float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
