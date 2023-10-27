@@ -138,9 +138,10 @@ public:
         af = atan(vn / ve);
 
         float angularAcceleration = L() / Iz;
-        float acceleration = Ftotal() / m;
-        float vx_p1 = old.vx + acceleration * cos(instant.steeringAngle) * dt;
-        float vy_p1 = old.vy + acceleration * sin(instant.steeringAngle) * dt;
+        float lateralAcceleration = Flateral() / m;
+        float transversalAcceleration = Ftransversal() / m;
+        float vx_p1 = old.vx + lateralAcceleration * cos(instant.steeringAngle) * dt;
+        float vy_p1 = old.vy + transversalAcceleration * sin(instant.steeringAngle) * dt;
 
         float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
