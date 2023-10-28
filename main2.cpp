@@ -127,27 +127,12 @@ public:
         instant.steeringAngle = steeringAngle;
         instant.brakes = brakes;
 
-        float vrx = old.vx;
-        float vry = old.vy - old.r * lr;
-        ar = atan(vry / vrx);
-
-        float vfx = old.vx;
-        float vfy = old.vy + old.r * lf;
-        float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
-        float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
-        af = atan(vn / ve);
-
-        float angularAcceleration = L() / Iz;
-        float lateralAcceleration = Flateral() / m;
-        float transversalAcceleration = Ftransversal() / m;
-        float vx_p1 = old.vx + lateralAcceleration * cos(instant.steeringAngle) * dt;
-        float vy_p1 = old.vy + transversalAcceleration * sin(instant.steeringAngle) * dt;
-
-        float X_p1 = old.X + (old.vx * cos(old.yaw) - old.vy * sin(old.yaw)) * dt;
+        float X_p1 = old.X + (old.vx * cos(old.yaw) + old.vy * sin(old.yaw)) * dt;
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
-
         float yaw_p1 = old.yaw + old.r * dt;
-        float r_p1 = old.r + angularAcceleration * dt;
+        float vx_p1 = old.vx + (Flateral() / m + old.vy * old.r) * dt;
+        float vy_p1 = old.vy + (Ftransversal() - old.vx * old.r) * dt;
+        float r_p1 = L() / Iz;
 
         t += dt;
         old = { X_p1, Y_p1, yaw_p1, vx_p1, vy_p1, r_p1 };
