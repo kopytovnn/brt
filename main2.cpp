@@ -131,7 +131,7 @@ public:
         float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
         float yaw_p1 = old.yaw + old.r * dt;
         float vx_p1 = old.vx + (Flateral() / m + old.vy * old.r) * dt;
-        float vy_p1 = old.vy + (Ftransversal() - old.vx * old.r) * dt;
+        float vy_p1 = old.vy + (Ftransversal() / m - old.vx * old.r) * dt;
         float r_p1 = L() / Iz;
 
         t += dt;
