@@ -110,7 +110,7 @@ private:
         cout << "\tFrrf() = " << Frrf() << endl;
         cout << "\tFry() = " << Fry() << endl;
         cout << "\tFrrf() = " << Frrf() << endl;
-        return -lr * Fry() + lf * (Ffy() - Fbf() - Frrf()) * sin(instant.steeringAngle);
+        return -lr * Fry() + lf * (Ffy() * cos(instant.steeringAngle) - Fbf() * sin(instant.steeringAngle) - Frrf() * sin(instant.steeringAngle));
     }
 
 public:
