@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <cmath>
 #include <fstream>
 using namespace std;
@@ -84,57 +84,56 @@ private:
         return magicFy(af, 0, m / 4);
     }
 
-    float magicFy(float alpha, float gamma, float Fz) {
-        float pDy1 = +2.716E+000;
-        float pDy2 = -5.444E-001;
-        float lgammay = 0.75;
-        float gammay = gamma * lgammay;
-        float pDy3 = +5.190E+000;
-        float lmuy = 1;
-        float Fz0;
-        float lFz0 = 1;
-        float dfz = (Fz - Fz0 * lFz0) / (Fz0 * lFz0);
-        float muy = (pDy1 + pDy2 * dfz) * (1 - pDy3 * gammay * gammay) * lmuy;
+float magicFy(float alpha, float gamma, float Fz) {
+    float pDy1 = +2.716E+000;
+    float pDy2 = -5.444E-001;
+    float lgammay = 0.75;
+    float gammay = gamma * lgammay;
+    float pDy3 = +5.190E+000;
+    float lmuy = 1;
+    float Fz0 = +8.000e+002;
+    float lFz0 = 1;
+    float dfz = (Fz - Fz0 * lFz0) / (Fz0 * lFz0);
+    float muy = (pDy1 + pDy2 * dfz) * (1 - pDy3 * gammay * gammay) * lmuy;
 
-        float pCy1 = +1.434E+000;
-        float lCy = 1;
-        float Cy = pCy1 * lCy;
+    float pCy1 = +1.434E+000;
+    float lCy = 1;
+    float Cy = pCy1 * lCy;
 
-        // float Fz;
-        float Dy = muy * Fz;
+    // float Fz;
+    float Dy = muy * Fz;
 
-        float pKy1 = -5.322E+001;
-        float pKy2 = +2.060E+000;
-        float lFz0 = 1;
-        float pKy3 = +8.336E-001;
-        float lKy = 1;
-        float Ky = pKy1 * Fz0 * sin(2 * atan2(Fz, (pKy2 * Fz0 * lFz0))) * (1 - pKy3 * abs(gammay)) * lFz0 * lKy;
-        float By = Ky / (Cy * Dy);
+    float pKy1 = -5.322E+001;
+    float pKy2 = +2.060E+000;
+    float pKy3 = +8.336E-001;
+    float lKy = 1;
+    float Ky = pKy1 * Fz0 * sin(2 * atan2(Fz, (pKy2 * Fz0 * lFz0))) * (1 - pKy3 * abs(gammay)) * lFz0 * lKy;
+    float By = Ky / (Cy * Dy);
 
-        float PHy1 = +0.000e+000;
-        float PHy2 = +0.000e+000;
-        float PHy3 = -2.030E-002;
-        float lHy = 1;
-        float SHy = (PHy1 + PHy2 * dfz) * lHy + PHy3 * gammay;
-        
-        float pEy1 = -4.869E-001;
-        float pEy2 = -1.487E+000;
-        float pEy3 = +6.282E-002;
-        float pEy4 = +1.154E+000;
-        float alphay = alpha + SHy;
-        float lEy = 0.55;
-        float Ey = (pEy1 + pEy2 * dfz) * (1 - (pEy3 + pEy4 * gammay) * sgn(alphay)) * lEy;
+    float PHy1 = +0.000e+000;
+    float PHy2 = +0.000e+000;
+    float PHy3 = -2.030E-002;
+    float lHy = 1;
+    float SHy = (PHy1 + PHy2 * dfz) * lHy + PHy3 * gammay;
 
-        float pVy1 = +0.000e+000;
-        float pVy2 = +0.000e+000;
-        float pVy3 = -2.713E+000;
-        float pVy4 = -1.517E+000;
-        float lVy = 1;
-        float SVy = Fz * ((pVy1 + pVy2 * dfz) * lVy + (pVy3 + pVy4 * dfz) * gammay) * lmuy;
+    float pEy1 = -4.869E-001;
+    float pEy2 = -1.487E+000;
+    float pEy3 = +6.282E-002;
+    float pEy4 = +1.154E+000;
+    float alphay = alpha + SHy;
+    float lEy = 0.55;
+    float Ey = (pEy1 + pEy2 * dfz) * (1 - (pEy3 + pEy4 * gammay) * sgn(alphay)) * lEy;
 
-        float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
-        return Fy0;
-    }
+    float pVy1 = +0.000e+000;
+    float pVy2 = +0.000e+000;
+    float pVy3 = -2.713E+000;
+    float pVy4 = -1.517E+000;
+    float lVy = 1;
+    float SVy = Fz * ((pVy1 + pVy2 * dfz) * lVy + (pVy3 + pVy4 * dfz) * gammay) * lmuy;
+
+    float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
+    return Fy0;
+}
 
     float Flateral() {
         float k = cos(atan(old.vy / old.vx));
@@ -209,6 +208,7 @@ ostream& operator<<(ostream& s, const SimpleDynamicBycicleModel& sdbm) {
 int main()
 {
     //SimpleKinematicBycicleModel A;
+    int iterations_by_one_step = 50;
     SimpleDynamicBycicleModel A;
     std::ifstream in("input.txt");
     if (in.is_open())
@@ -218,8 +218,10 @@ int main()
         for (int i = 0; i < n; i++) {
             float a, sa, br;
             in >> a >> sa >> br;
-            A.update(a, sa, br);
-            cout << A << endl;
+            for (int j = 0; j < iterations_by_one_step; j++) {
+                A.update(a, sa, br);
+                cout << A << endl;
+            }
         }
     }
     in.close();
