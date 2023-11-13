@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <cmath>
 #include <fstream>
 #include "C16_CONTINENTAL_Tire_Data.h"
@@ -121,6 +121,14 @@ private:
         return magicFy(af, 0, m / 4);
     }
 
+    float Frx() {
+        return magicFx(ar, 0, m / 4);
+    }
+
+    float Ffx() {
+        return magicFx(af, 0, m / 4);
+    }
+
     float magicFy(float alpha, float gamma, float Fz) {
         float gammay = gamma * LGAY;
         float Fz0 = FNOMIN;
@@ -145,13 +153,41 @@ private:
         return Fy0;
     }
 
+    float magicFx(float kappa, float gamma, float Fz) {
+        float gammax = gamma * LGAX;
+        float Fz0 = FNOMIN;
+
+        float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
+        float mux = (PDX1 + PDX2 * dfz) * (1 - PDX3 * gammax * gammax) * LMUX;;
+        float Cx = PCX1 * LCX;
+
+        float Dx = mux * Fz;
+
+        float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
+        float Bx = Kx / (Cx * Dx);
+
+        float SHx = (PHX1 + PHX2 * dfz) * LHX;
+
+        float kappax = kappa + SHx;
+        float Ex = (PEX1 + PEX2 * dfz + PEX3 * dfz * dfz) * (1 - PEX4 * sgn(kappax)) * LEX;
+
+        float Svx = Fz * (PVX1 + PVX2 * dfz) * LVX * LMUX;
+
+        float Fx0 = Dx * sin(Cx * atan(Bx * kappax - Ex * (Bx * kappax - atan(Bx * kappax)))) + Svx;
+        return Fx0;
+    }
+
     float L() {  // Angular momentum
         //cout << "\tFfy() = " << Ffy() << endl;
         //cout << "\tFbf() = " << Fbf() << endl;
         //cout << "\tFrrf() = " << Frrf() << endl;
         //cout << "\tFry() = " << Fry() << endl;
         //cout << "\tFrrf() = " << Frrf() << endl;
-        return -lr * Fry() + lf * (Ffy() * cos(instant.steeringAngle) - Fbf() * sin(instant.steeringAngle) - Frrf() * sin(instant.steeringAngle));
+        return -lr * Fry() + lf * (Ffy() * cos(instant.steeringAngle)
+            - Fbf() * sin(instant.steeringAngle)
+            - Frrf() * sin(instant.steeringAngle)
+            + Ffx() * sin(instant.steeringAngle))
+            + lr * (- Frx());
     }
 
     float Flateral() {
@@ -162,7 +198,8 @@ private:
         }
         return -Frrr() - Fbr() + Fdrv()
             - Faero
-            - Fbf() * cos(instant.steeringAngle) - Frrf() * cos(instant.steeringAngle) - Ffy() * sin(instant.steeringAngle);
+            - Fbf() * cos(instant.steeringAngle) - Frrf() * cos(instant.steeringAngle) - Ffy() * sin(instant.steeringAngle)
+            + Ffx() * cos(instant.steeringAngle) + Frx();
     }
 
     float Ftransversal() {
