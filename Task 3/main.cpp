@@ -1,6 +1,10 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include "C16_CONTINENTAL_Tire_Data.h"
+#include "constants.h"
+using namespace C16_CONTINENTAL_Tire_Data;
+using namespace CONSTANTS_JBS;
 using namespace std;
 
 
@@ -8,41 +12,57 @@ float sgn(float v) {
     return (v > 0) - (v < 0);
 }
 
+struct state {
+    float X;
+    float Y;
+    float yaw;
+    float vx;
+    float vy;
+    float r; 
 
-class SimpleDynamicBycicleModel {
+    state operator*=(float a) {
+        return state{ 
+            this->X * a, 
+            this->Y * a, 
+            this->yaw * a, 
+            this->vx * a, 
+            this->vy * a,
+            this->r * a};
+    }
+
+    state operator+(state a) {
+        return state{
+            this->X + a.X,
+            this->Y + a.Y,
+            this->yaw + a.yaw,
+            this->vx + a.vx,
+            this->vy + a.vy,
+            this->r + a.r };
+    }
+};
+
+state operator*(state a, float b) {
+    return a *= b;
+}
+
+state operator*(float a, state b) {
+    return b *= a;
+}
+
+struct input {
+    float throttle;
+    float steeringAngle;
+    float brakes;
+};
+
+
+class DynamicBycicleModel3 {
 private:
-    struct x {
-        float X;
-        float Y;
-        float yaw;
-        float vx;
-        float vy;
-        float r;
-    };
-
-    struct u {
-        float throttle;
-        float steeringAngle;
-        float brakes;
-    };
-
-    x old = { 0.0, 0.0, 0.0 , 0.0, 0.0, 0.0 };
-    u instant;
-    float t = 0.0f;
-
-    const float dt = 0.001f;
-    const float m = 300.0f;
-    const float lf = 0.721f;
-    const float lr = 0.823f;
-    const float Cm = 3600.0f;
-    const float Crr = 200.0f;
-    const float Cd = 1.53f;
-    const float Cbf = 5411.0f;
-    const float Cbr = 2650.0f;
-    const float Cx = 20000.0f;
-    const float Iz = 134.0f;
+    state old = { 0, 0, 0, 0, 0, 0 };
     float ar = 0.0f;
     float af = 0.0f;
+    float t = 0.0f;
+    input instant;
 
     float Fdrv() {
         return instant.throttle * Cm * instant.throttle;
@@ -68,158 +88,107 @@ private:
         return instant.brakes * Cbr * tanh(old.vx);
     }
 
-    float Fry() {
-        //if (ar != ar) {
-        //    return 0.0f;
-        //}
-        //return Cx * ar;
-        return magicFy(ar, 0, m / 4);
+    float magicFnu(float alpha, float gamma, float Fz) {
+        float gammay = gamma * LGAY;
+        float Fz0 = FNOMIN;
+
+        float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
+        float muy = (PDY1 + PDY2 * dfz) * (1 - PDY3 * gammay * gammay) * LMUY;;
+        float Cy = PCY1 * LCY;
+
+        float Dy = muy * Fz;
+
+        float Ky = PKY1 * Fz0 * sin(2 * atan2(Fz, (PKY2 * Fz0 * LFZO))) * (1 - PKY3 * abs(gammay)) * LFZO * LKY;
+        float By = Ky / (Cy * Dy);
+
+        float SHy = (PHY1 + PHY2 * dfz) * LHY + PHY3 * gammay;
+
+        float alphay = alpha + SHy;
+        float Ey = (PEY1 + PEY2 * dfz) * (1 - (PEY3 + PEY4 * gammay) * sgn(alphay)) * LEY;
+
+        float SVy = Fz * ((PVY1 + PVY2 * dfz) * LVY + (PVY3 + PVY4 * dfz) * gammay) * LMUY;
+
+        float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
+        return Fy0;
     }
 
-    float Ffy() {
-        //if (af != af) {
-        //    return 0.0f;
-        //}
-        //return Cx * af;
-        return magicFy(af, 0, m / 4);
+    float magicFksi(float kappa, float gamma, float Fz) {
+        return 0;
     }
 
-float magicFy(float alpha, float gamma, float Fz) {
-    float pDy1 = +2.716E+000;
-    float pDy2 = -5.444E-001;
-    float lgammay = 0.75;
-    float gammay = gamma * lgammay;
-    float pDy3 = +5.190E+000;
-    float lmuy = 1;
-    float Fz0 = +8.000e+002;
-    float lFz0 = 1;
-    float dfz = (Fz - Fz0 * lFz0) / (Fz0 * lFz0);
-    float muy = (pDy1 + pDy2 * dfz) * (1 - pDy3 * gammay * gammay) * lmuy;
+    float Ffy(float alpha) {
+        return magicFnu(alpha, 0, m / 4);
+        //return - Cx * alpha;
+    }
 
-    float pCy1 = +1.434E+000;
-    float lCy = 1;
-    float Cy = pCy1 * lCy;
+    float Fry(float alpha) {
+        return magicFnu(alpha, 0, m / 4);
+        //return - Cx * alpha;
+    }
 
-    // float Fz;
-    float Dy = muy * Fz;
+    float L() {
+        float Ffwy; // projection of all first-wheel forces to OY
+        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
+            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)*/
+            + Ffy(af) * sin(instant.steeringAngle)
+            - Frrf() * sin(instant.steeringAngle)
+            - Fbf() * sin(instant.steeringAngle);
+        float Lfwy = Ffwy * lf;
 
-    float pKy1 = -5.322E+001;
-    float pKy2 = +2.060E+000;
-    float pKy3 = +8.336E-001;
-    float lKy = 1;
-    float Ky = pKy1 * Fz0 * sin(2 * atan2(Fz, (pKy2 * Fz0 * lFz0))) * (1 - pKy3 * abs(gammay)) * lFz0 * lKy;
-    float By = Ky / (Cy * Dy);
+        float Frwy;
+        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
+        float Lrwy = -Frwy * lr;
 
-    float PHy1 = +0.000e+000;
-    float PHy2 = +0.000e+000;
-    float PHy3 = -2.030E-002;
-    float lHy = 1;
-    float SHy = (PHy1 + PHy2 * dfz) * lHy + PHy3 * gammay;
-
-    float pEy1 = -4.869E-001;
-    float pEy2 = -1.487E+000;
-    float pEy3 = +6.282E-002;
-    float pEy4 = +1.154E+000;
-    float alphay = alpha + SHy;
-    float lEy = 0.55;
-    float Ey = (pEy1 + pEy2 * dfz) * (1 - (pEy3 + pEy4 * gammay) * sgn(alphay)) * lEy;
-
-    float pVy1 = +0.000e+000;
-    float pVy2 = +0.000e+000;
-    float pVy3 = -2.713E+000;
-    float pVy4 = -1.517E+000;
-    float lVy = 1;
-    float SVy = Fz * ((pVy1 + pVy2 * dfz) * lVy + (pVy3 + pVy4 * dfz) * gammay) * lmuy;
-
-    float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
-    return Fy0;
-}
-
-float magicFx(float alpha, float gamma, float Fz) {
-    float pDy1 = +2.716E+000;
-    float pDy2 = -5.444E-001;
-    float lgammay = 0.75;
-    float gammay = gamma * lgammay;
-    float pDy3 = +5.190E+000;
-    float lmuy = 1;
-    float Fz0 = +8.000e+002;
-    float lFz0 = 1;
-    float dfz = (Fz - Fz0 * lFz0) / (Fz0 * lFz0);
-    float muy = (pDy1 + pDy2 * dfz) * (1 - pDy3 * gammay * gammay) * lmuy;
-
-    float pCy1 = +1.434E+000;
-    float lCy = 1;
-    float Cy = pCy1 * lCy;
-
-    // float Fz;
-    float Dy = muy * Fz;
-
-    float pKy1 = -5.322E+001;
-    float pKy2 = +2.060E+000;
-    float pKy3 = +8.336E-001;
-    float lKy = 1;
-    float Ky = pKy1 * Fz0 * sin(2 * atan2(Fz, (pKy2 * Fz0 * lFz0))) * (1 - pKy3 * abs(gammay)) * lFz0 * lKy;
-    float By = Ky / (Cy * Dy);
-
-    float PHy1 = +0.000e+000;
-    float PHy2 = +0.000e+000;
-    float PHy3 = -2.030E-002;
-    float lHy = 1;
-    float SHy = (PHy1 + PHy2 * dfz) * lHy + PHy3 * gammay;
-
-    float pEy1 = -4.869E-001;
-    float pEy2 = -1.487E+000;
-    float pEy3 = +6.282E-002;
-    float pEy4 = +1.154E+000;
-    float alphay = alpha + SHy;
-    float lEy = 0.55;
-    float Ey = (pEy1 + pEy2 * dfz) * (1 - (pEy3 + pEy4 * gammay) * sgn(alphay)) * lEy;
-
-    float pVy1 = +0.000e+000;
-    float pVy2 = +0.000e+000;
-    float pVy3 = -2.713E+000;
-    float pVy4 = -1.517E+000;
-    float lVy = 1;
-    float SVy = Fz * ((pVy1 + pVy2 * dfz) * lVy + (pVy3 + pVy4 * dfz) * gammay) * lmuy;
-
-    float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
-    return Fy0;
-}
+        return Lfwy + Lrwy;
+    }
 
     float Flateral() {
-        float k = cos(atan(old.vy / old.vx));
-        float Faero = 0.0f;
-        if (k == k) {
-            Faero = Fdrag() * k;
-        }
-        return -Frrr() - Fbr() + Fdrv()
-            - Faero
-            - Fbf() * cos(instant.steeringAngle) - Frrf() * cos(instant.steeringAngle) - Ffy() * sin(instant.steeringAngle);
+        float Ffwy; // projection of all first-wheel forces to OY
+        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
+            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)
+            + magicFnu(ar, 0, m / 4)*/
+            + Ffy(af) * cos(instant.steeringAngle)
+            - Frrf() * sin(instant.steeringAngle)
+            - Fbf() * sin(instant.steeringAngle);
+
+        float Frwy;
+        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
+
+        return Ffwy + Frwy;
     }
 
     float Ftransversal() {
-        float k = sin(atan(old.vy / old.vx));
-        float Faero = 0.0f;
-        if (k == k) {
-            Faero = Fdrag() * k;
-        }
-        return Fry() - Faero - (Fbf() + Frrf()) * sin(instant.steeringAngle) + Ffy() * cos(instant.steeringAngle);
+        float Ffwx;
+        Ffwx = /*magicFksi(0, 0, 0) * cos(instant.steeringAngle)
+            + magicFnu(af, 0, m / 4) * sin(instant.steeringAngle)*/
+            + Ffy(af) * sin(instant.steeringAngle)
+            - Frrf() * cos(instant.steeringAngle)
+            - Fbf() * cos(instant.steeringAngle);
+
+        float Frwx;
+        Frwx = Fdrv()
+            - Fbr()
+            - Frrr()
+            + magicFksi(0, 0, 0);
+
+        return Ffwx - Fdrag() + Frwx;
     }
 
-    float Ftotal() {
-        cout << "\tFlateral() = " << Flateral() << endl;
-        cout << "\tFtransversal() = " << Ftransversal() << endl;
-        return sqrt(pow(Flateral(), 2) + pow(Ftransversal(), 2));
-    }
+    state f(state data) {
+        float X_intermidiate = data.vx * cos(data.yaw) - data.vy * sin(data.yaw);
+        float Y_intermidiate = data.vx * sin(data.yaw) + data.vy * cos(data.yaw);
+        float yaw_intermidiate = data.r;
+        float vx_intermidiate = (Ftransversal() / m + data.vy * data.r);
+        float vy_intermidiate = (Flateral() / m - data.vx * data.r);
+        float r_intermidiate = L() / Iz;
 
-
-    float L() {  // Angular momentum
-        //cout << "\tFfy() = " << Ffy() << endl;
-        //cout << "\tFbf() = " << Fbf() << endl;
-        //cout << "\tFrrf() = " << Frrf() << endl;
-        //cout << "\tFry() = " << Fry() << endl;
-        //cout << "\tFrrf() = " << Frrf() << endl;
-        return -lr * Fry() + lf * (Ffy() * cos(instant.steeringAngle) - Fbf() * sin(instant.steeringAngle) - Frrf() * sin(instant.steeringAngle));
+        return state{
+            X_intermidiate,
+            Y_intermidiate,
+            yaw_intermidiate,
+            vx_intermidiate,
+            vy_intermidiate,
+            r_intermidiate };
     }
 
 public:
@@ -231,36 +200,47 @@ public:
     float getr() const { return old.r; }
     float gett() const { return t; }
 
-    void update(float throttle, float steeringAngle, float brakes) {
-        instant.throttle = throttle;
-        instant.steeringAngle = steeringAngle;
-        instant.brakes = brakes;
+    void update(input un) {
+        instant.throttle = un.throttle;
+        instant.steeringAngle = un.steeringAngle;
+        instant.brakes = un.brakes;
 
-        float X_p1 = old.X + (old.vx * cos(old.yaw) + old.vy * sin(old.yaw)) * dt;
-        float Y_p1 = old.Y + (old.vx * sin(old.yaw) + old.vy * cos(old.yaw)) * dt;
-        float yaw_p1 = old.yaw + old.r * dt;
-        float vx_p1 = old.vx + (Flateral() / m + old.vy * old.r) * dt;
-        float vy_p1 = old.vy + (Ftransversal() / m - old.vx * old.r) * dt;
-        float r_p1 = L() / Iz;
+        float vrx = old.vx;
+        float vry = old.vy - old.r * lr;
+        ar = atan2(vry, vrx);
+
+        float vfx = old.vx;
+        float vfy = old.vy + old.r * lf;
+        float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
+        float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
+        af = atan2(vn, ve);
+
+        float h = dt;
+        state k1 = f(old);
+        state k2 = f(old + k1 * (h / 2));
+        state k3 = f(old + k2 * (h / 2));
+        state k4 = f(old + k3 * h);
+
+        state n1 = old + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
+
+        //state n1 = old + f(old) * dt;
+
+        old = n1;
 
         t += dt;
-        old = { X_p1, Y_p1, yaw_p1, vx_p1, vy_p1, r_p1 };
     }
 };
 
-
-ostream& operator<<(ostream& s, const SimpleDynamicBycicleModel& sdbm) {
+ostream& operator<<(ostream& s, const DynamicBycicleModel3& sdbm) {
     return (s << "x(" << sdbm.gett() << ") = {" << sdbm.getX() <<
         " " << sdbm.getY() << " " << sdbm.getyaw() <<
         " " << sdbm.getvx() << " " << sdbm.getvy() << " " << sdbm.getr() << " }");
 }
 
-
 int main()
 {
-    //SimpleKinematicBycicleModel A;
     int iterations_by_one_step = 50;
-    SimpleDynamicBycicleModel A;
+    DynamicBycicleModel3 A;
     std::ifstream in("input.txt");
     if (in.is_open())
     {
@@ -269,8 +249,9 @@ int main()
         for (int i = 0; i < n; i++) {
             float a, sa, br;
             in >> a >> sa >> br;
+
             for (int j = 0; j < iterations_by_one_step; j++) {
-                A.update(a, sa, br);
+                A.update(input{ a, sa, br });
             }
             cout << A << endl;
         }
