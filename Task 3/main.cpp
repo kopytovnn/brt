@@ -61,6 +61,7 @@ private:
     state old = { 0, 0, 0, 0, 0, 0 };
     float ar = 0.0f;
     float af = 0.0f;
+    float kappa = 0;
     float t = 0.0f;
     input instant;
 
@@ -126,11 +127,20 @@ private:
         //return - Cx * alpha;
     }
 
+    float Ffx(float kappa) {
+        return magicFksi(kappa, 0, m / 4);
+    }
+
+    float Frx(float kappa) {
+        return magicFksi(kappa, 0, m / 4);
+    }
+
     float L() {
         float Ffwy; // projection of all first-wheel forces to OY
         Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
             + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)*/
-            + Ffy(af) * sin(instant.steeringAngle)
+            Frx(kappa) * sin(instant.steeringAngle)
+            + Ffy(af) * cos(instant.steeringAngle)
             - Frrf() * sin(instant.steeringAngle)
             - Fbf() * sin(instant.steeringAngle);
         float Lfwy = Ffwy * lf;
@@ -148,6 +158,7 @@ private:
             + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)
             + magicFnu(ar, 0, m / 4)*/
             + Ffy(af) * cos(instant.steeringAngle)
+            + Fry(kappa) * sin(instant.steeringAngle)
             - Frrf() * sin(instant.steeringAngle)
             - Fbf() * sin(instant.steeringAngle);
 
@@ -161,7 +172,8 @@ private:
         float Ffwx;
         Ffwx = /*magicFksi(0, 0, 0) * cos(instant.steeringAngle)
             + magicFnu(af, 0, m / 4) * sin(instant.steeringAngle)*/
-            + Ffy(af) * sin(instant.steeringAngle)
+            - Ffy(af) * sin(instant.steeringAngle)
+            + Ffx(af) * cos(instant.steeringAngle)
             - Frrf() * cos(instant.steeringAngle)
             - Fbf() * cos(instant.steeringAngle);
 
@@ -169,7 +181,7 @@ private:
         Frwx = Fdrv()
             - Fbr()
             - Frrr()
-            + magicFksi(0, 0, 0);
+            + Frx(kappa);
 
         return Ffwx - Fdrag() + Frwx;
     }
@@ -214,6 +226,8 @@ public:
         float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
         float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
         af = atan2(vn, ve);
+
+
 
         float h = dt;
         state k1 = f(old);
