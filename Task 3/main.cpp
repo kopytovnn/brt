@@ -18,16 +18,16 @@ struct state {
     float yaw;
     float vx;
     float vy;
-    float r; 
+    float r;
 
     state operator*=(float a) {
-        return state{ 
-            this->X * a, 
-            this->Y * a, 
-            this->yaw * a, 
-            this->vx * a, 
+        return state{
+            this->X * a,
+            this->Y * a,
+            this->yaw * a,
+            this->vx * a,
             this->vy * a,
-            this->r * a};
+            this->r * a };
     }
 
     state operator+(state a) {
@@ -113,77 +113,37 @@ private:
         return Fy0;
     }
 
-    float magicFksi(float kappa, float gamma, float Fz) {
-        return 0;
-    }
-
-    float Ffy(float alpha) {
-        return magicFnu(alpha, 0, m / 4);
+    float Ffy() {
+        return magicFnu(af, 0, m / 4);
         //return - Cx * alpha;
     }
 
-    float Fry(float alpha) {
-        return magicFnu(alpha, 0, m / 4);
+    float Fry() {
+        return magicFnu(ar, 0, m / 4);
         //return - Cx * alpha;
-    }
-
-    float Ffx(float kappa) {
-        return magicFksi(kappa, 0, m / 4);
-    }
-
-    float Frx(float kappa) {
-        return magicFksi(kappa, 0, m / 4);
     }
 
     float L() {
-        float Ffwy; // projection of all first-wheel forces to OY
-        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)*/
-            Frx(kappa) * sin(instant.steeringAngle)
-            + Ffy(af) * cos(instant.steeringAngle)
-            - Frrf() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle);
-        float Lfwy = Ffwy * lf;
-
-        float Frwy;
-        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
-        float Lrwy = -Frwy * lr;
-
-        return Lfwy + Lrwy;
+        return Ffy() * cos(instant.steeringAngle) * lf
+            - Frrf() * sin(instant.steeringAngle) * lf
+            - Fbf() * sin(instant.steeringAngle) * lf;
     }
 
     float Flateral() {
-        float Ffwy; // projection of all first-wheel forces to OY
-        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)
-            + magicFnu(ar, 0, m / 4)*/
-            + Ffy(af) * cos(instant.steeringAngle)
-            + Fry(kappa) * sin(instant.steeringAngle)
+        return -Ffy() * cos(instant.steeringAngle)
+            - Fbf() * sin(instant.steeringAngle)
             - Frrf() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle);
-
-        float Frwy;
-        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
-
-        return Ffwy + Frwy;
+            + Fry();
     }
 
     float Ftransversal() {
-        float Ffwx;
-        Ffwx = /*magicFksi(0, 0, 0) * cos(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * sin(instant.steeringAngle)*/
-            - Ffy(af) * sin(instant.steeringAngle)
-            + Ffx(af) * cos(instant.steeringAngle)
+        return -Ffy() * sin(instant.steeringAngle)
+            - Fbf() * cos(instant.steeringAngle)
             - Frrf() * cos(instant.steeringAngle)
-            - Fbf() * cos(instant.steeringAngle);
+            - Fdrag()
+            + Fdrv()
+            - Fbr();
 
-        float Frwx;
-        Frwx = Fdrv()
-            - Fbr()
-            - Frrr()
-            + Frx(kappa);
-
-        return Ffwx - Fdrag() + Frwx;
     }
 
     state f(state data) {
