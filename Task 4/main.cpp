@@ -18,16 +18,16 @@ struct state {
     float yaw;
     float vx;
     float vy;
-    float r; 
+    float r;
     float omegaf;
     float omegar;
 
     state operator*=(float a) {
-        return state{ 
-            this->X * a, 
-            this->Y * a, 
-            this->yaw * a, 
-            this->vx * a, 
+        return state{
+            this->X * a,
+            this->Y * a,
+            this->yaw * a,
+            this->vx * a,
             this->vy * a,
             this->r * a,
             this->omegaf * a,
@@ -43,7 +43,7 @@ struct state {
             this->vy + a.vy,
             this->r + a.r,
             this->omegaf + a.omegaf,
-            this->omegar + a.omegar};
+            this->omegar + a.omegar };
     }
 };
 
@@ -62,9 +62,9 @@ struct input {
 };
 
 
-class DynamicBycicleModel4 {
+class DynamicBycicleModel3 {
 private:
-    state old = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    state old = { 0, 0, 0, 0, 0, 0 };
     float ar = 0.0f;
     float af = 0.0f;
     float kappaf = 0;
@@ -121,18 +121,18 @@ private:
         return Fy0;
     }
 
+    float Ffy() {
+        return magicFnu(af, 0, m / 4);
+        //return - Cx * alpha;
+    }
+
+    float Fry() {
+        return magicFnu(ar, 0, m / 4);
+        //return - Cx * alpha;
+    }
+
     float magicFksi(float kappa, float gamma, float Fz) {
         return 0;
-    }
-
-    float Ffy(float alpha) {
-        return magicFnu(alpha, 0, m / 4);
-        //return - Cx * alpha;
-    }
-
-    float Fry(float alpha) {
-        return magicFnu(alpha, 0, m / 4);
-        //return - Cx * alpha;
     }
 
     float Ffx() {
@@ -143,55 +143,36 @@ private:
         return magicFksi(kappar, 0, m / 4);
     }
 
-    float L() {
-        float Ffwy; // projection of all first-wheel forces to OY
-        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)*/
-            Ffx() * sin(instant.steeringAngle)
-            + Ffy(af) * cos(instant.steeringAngle)
-            - Frrf() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle);
-        float Lfwy = Ffwy * lf;
 
-        float Frwy;
-        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
-        float Lrwy = -Frwy * lr;
-
-        return Lfwy + Lrwy;
+    float L(int toOutput=0) {
+        if (toOutput == 1) {
+            cout << Ffy() << '\t' << Frrf() << '\t' << Fbf() << endl;
+        }
+        return Ffy() * cos(instant.steeringAngle) * lf
+            - Frrf() * sin(instant.steeringAngle) * lf
+            - Fbf() * sin(instant.steeringAngle) * lf
+            - Fry() * lr
+            + Ffx() * sin(instant.steeringAngle) * lf;
     }
 
     float Flateral() {
-        float Ffwy; // projection of all first-wheel forces to OX
-        Ffwy = /*magicFksi(0, 0, 0) * sin(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * cos(instant.steeringAngle)
-            + magicFnu(ar, 0, m / 4)*/
-            + Ffy(af) * cos(instant.steeringAngle)
-            + Ffx() * sin(instant.steeringAngle)
+        return -Ffy() * cos(instant.steeringAngle)
+            - Fbf() * sin(instant.steeringAngle)
             - Frrf() * sin(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle);
-
-        float Frwy;
-        Frwy = /*magicFnu(ar, 0, m / 4)*/ + Fry(ar);
-
-        return Ffwy + Frwy;
+            + Fry()
+            + Ffx() * sin(instant.steeringAngle);
     }
 
     float Ftransversal() {
-        float Ffwx;
-        Ffwx = /*magicFksi(0, 0, 0) * cos(instant.steeringAngle)
-            + magicFnu(af, 0, m / 4) * sin(instant.steeringAngle)*/
-            - Ffy(af) * sin(instant.steeringAngle)
-            + Ffx() * cos(instant.steeringAngle)
+        return -Ffy() * sin(instant.steeringAngle)
+            - Fbf() * cos(instant.steeringAngle)
             - Frrf() * cos(instant.steeringAngle)
-            - Fbf() * cos(instant.steeringAngle);
-
-        float Frwx;
-        Frwx = Fdrv()
+            - Fdrag()
+            + Fdrv()
             - Fbr()
-            - Frrr()
+            + Ffx() * cos(instant.steeringAngle)
             + Frx();
 
-        return Ffwx - Fdrag() + Frwx;
     }
 
     float frontWheelAngleAcceleration() {
@@ -224,7 +205,7 @@ private:
             vy_intermidiate,
             r_intermidiate,
             omegaf_intermidiate,
-            omegar_intermidiate};
+            omegar_intermidiate };
     }
 
 public:
@@ -243,16 +224,29 @@ public:
 
         float vrx = old.vx;
         float vry = old.vy - old.r * lr;
-        ar = atan2(vry, vrx);
+        if (vrx == 0) {
+            ar = 0;
+        }
+        else {
+            ar = vry / vrx;
+        }
 
         float vfx = old.vx;
         float vfy = old.vy + old.r * lf;
         float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
-        float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
-        af = atan2(vn, ve);
+        float vn = -vfx * sin(instant.steeringAngle) + vfy * cos(instant.steeringAngle);
+        if (ve == 0) {
+            af = 0;
+        }
+        else {
+            af = vn / ve;
+        }
 
         kappaf = (frontWheelAngleAcceleration() * UNLOADED_RADIUS - old.vx) / max(old.vx, vxmin);
         kappar = (rearWheelAngleAcceleration() * UNLOADED_RADIUS - old.vx) / max(old.vx, vxmin);
+
+        cout << "\tL: " << L() << "\taf: " << af << endl;
+        cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;
 
         float h = dt;
         state k1 = f(old);
@@ -263,14 +257,13 @@ public:
         state n1 = old + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
 
         //state n1 = old + f(old) * dt;
-
         old = n1;
 
         t += dt;
     }
 };
 
-ostream& operator<<(ostream& s, const DynamicBycicleModel4& sdbm) {
+ostream& operator<<(ostream& s, const DynamicBycicleModel3& sdbm) {
     return (s << "x(" << sdbm.gett() << ") = {" << sdbm.getX() <<
         " " << sdbm.getY() << " " << sdbm.getyaw() <<
         " " << sdbm.getvx() << " " << sdbm.getvy() << " " << sdbm.getr() << " }");
@@ -279,7 +272,7 @@ ostream& operator<<(ostream& s, const DynamicBycicleModel4& sdbm) {
 int main()
 {
     int iterations_by_one_step = 50;
-    DynamicBycicleModel4 A;
+    DynamicBycicleModel3 A;
     std::ifstream in("input.txt");
     if (in.is_open())
     {
