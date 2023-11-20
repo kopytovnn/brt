@@ -132,7 +132,27 @@ private:
     }
 
     float magicFksi(float kappa, float gamma, float Fz) {
-        return 0;
+        float gammax = gamma * LGAX;
+        float Fz0 = FNOMIN;
+
+        float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
+        float mux = (PDX1 + PDX2 * dfz) * (1 - PDX3 * gammax * gammax) * LMUX;;
+        float Cx = PCX1 * LCX;
+
+        float Dx = mux * Fz;
+
+        float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
+        float Bx = Kx / (Cx * Dx);
+
+        float SHx = (PHX1 + PHX2 * dfz) * LHX;
+
+        float kappax = kappa + SHx;
+        float Ex = (PEX1 + PEX2 * dfz + PEX3 * dfz * dfz) * (1 - PEX4 * sgn(kappax)) * LEX;
+
+        float Svx = Fz * (PVX1 + PVX2 * dfz) * LVX * LMUX;
+
+        float Fx0 = Dx * sin(Cx * atan(Bx * kappax - Ex * (Bx * kappax - atan(Bx * kappax)))) + Svx;
+        return Fx0;
     }
 
     float Ffx() {
@@ -245,8 +265,8 @@ public:
         kappaf = (frontWheelAngleAcceleration() * UNLOADED_RADIUS - old.vx) / max(old.vx, vxmin);
         kappar = (rearWheelAngleAcceleration() * UNLOADED_RADIUS - old.vx) / max(old.vx, vxmin);
 
-        cout << "\tL: " << L() << "\taf: " << af << endl;
-        cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;
+        //cout << "\tL: " << L() << "\taf: " << af << endl;
+        //cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;
 
         float h = dt;
         state k1 = f(old);
