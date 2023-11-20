@@ -123,10 +123,14 @@ private:
         //return - Cx * alpha;
     }
 
-    float L() {
+    float L(int toOutput=0) {
+        if (toOutput == 1) {
+            cout << Ffy() << '\t' << Frrf() << '\t' << Fbf() << endl;
+        }
         return Ffy() * cos(instant.steeringAngle) * lf
             - Frrf() * sin(instant.steeringAngle) * lf
-            - Fbf() * sin(instant.steeringAngle) * lf;
+            - Fbf() * sin(instant.steeringAngle) * lf
+            - Fry() * lr;
     }
 
     float Flateral() {
@@ -179,15 +183,26 @@ public:
 
         float vrx = old.vx;
         float vry = old.vy - old.r * lr;
-        ar = atan2(vry, vrx);
+        if (vrx == 0) {
+            ar = 0;
+        }
+        else {
+            ar = vry / vrx;
+        }
 
         float vfx = old.vx;
         float vfy = old.vy + old.r * lf;
         float ve = vfx * cos(instant.steeringAngle) + vfy * sin(instant.steeringAngle);
-        float vn = vfy * cos(instant.steeringAngle) - vfx * sin(instant.steeringAngle);
-        af = atan2(vn, ve);
+        float vn = -vfx * sin(instant.steeringAngle) + vfy * cos(instant.steeringAngle);
+        if (ve == 0) {
+            af = 0;
+        }
+        else {
+            af = vn / ve;
+        }
 
-
+        cout << "\tL: " << L() << "\taf: " << af << endl;
+        cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;
 
         float h = dt;
         state k1 = f(old);
@@ -198,7 +213,6 @@ public:
         state n1 = old + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
 
         //state n1 = old + f(old) * dt;
-
         old = n1;
 
         t += dt;
