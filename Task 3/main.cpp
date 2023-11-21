@@ -114,16 +114,20 @@ private:
     }
 
     float Ffy() {
-        return magicFnu(af, 0, m / 4);
-        //return - Cx * alpha;
+        /*cout << "\tFfy = " << magicFnu(af, 0, m * 9.81 / 4) << endl;
+        cout << "\tCx * af = " << Cx * af << endl;*/
+        return 2 * magicFnu(af, 0, m * 9.81 / 4);
+        //return Cx * af;
     }
 
     float Fry() {
-        return magicFnu(ar, 0, m / 4);
-        //return - Cx * alpha;
+        /*cout << "\tFry = " << magicFnu(ar, 0, m * 9.81 / 4) << endl;
+        cout << "\tCx * ar = " << Cx * ar << endl;*/
+        return 2 * magicFnu(ar, 0, m * 9.81 / 4);
+        //return Cx * ar;
     }
 
-    float L(int toOutput=0) {
+    float L(int toOutput = 0) {
         if (toOutput == 1) {
             cout << Ffy() << '\t' << Frrf() << '\t' << Fbf() << endl;
         }
@@ -134,7 +138,7 @@ private:
     }
 
     float Flateral() {
-        return -Ffy() * cos(instant.steeringAngle)
+        return Ffy() * cos(instant.steeringAngle)
             - Fbf() * sin(instant.steeringAngle)
             - Frrf() * sin(instant.steeringAngle)
             + Fry();
@@ -146,11 +150,13 @@ private:
             - Frrf() * cos(instant.steeringAngle)
             - Fdrag()
             + Fdrv()
-            - Fbr();
+            - Fbr()
+            - Frrr();
 
     }
 
     state f(state data) {
+
         float X_intermidiate = data.vx * cos(data.yaw) - data.vy * sin(data.yaw);
         float Y_intermidiate = data.vx * sin(data.yaw) + data.vy * cos(data.yaw);
         float yaw_intermidiate = data.r;
@@ -201,8 +207,24 @@ public:
             af = vn / ve;
         }
 
-        cout << "\tL: " << L() << "\taf: " << af << endl;
-        cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;
+        /*cout << "L: " << L() << "\taf: " << af << endl;
+        cout << "\tFlateral: " << Flateral() << "\tFtransversal: " << Ftransversal() << endl;
+        cout << "\t\tvx: " << old.vx << "\tvy: " << old.vy << endl;*/
+
+        cout << "Fdrv = " << Fdrv() << endl;
+        cout << "Frrr = " << Frrr() << endl;
+        cout << "Frrf = " << Frrf() << endl;
+        cout << "Fdrag = " << Fdrag() << endl;
+        cout << "Fbf = " << Fbf() << endl;
+        cout << "Fbr = " << Fbr() << endl;
+        cout << "Ffy = " << Ffy() << endl;
+        cout << "Ffy*sin(sigma) = " << Ffy() * sin(instant.steeringAngle) << endl;
+        cout << "Fry = " << Fry() << endl;
+        cout << "Flateral = " << Flateral() << endl;
+        cout << "Ftransversal = " << Ftransversal() << endl;
+        cout << "  af = " << af << "\tar = " << ar << endl;
+        cout << "\tvx " << old.vx << "\tcos yaw " << cos(old.yaw) << "\told vy " << old.vy << "\tsin yaw " << sin(old.yaw) << endl;
+        cout << endl;
 
         float h = dt;
         state k1 = f(old);
