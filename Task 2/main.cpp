@@ -8,287 +8,179 @@ using namespace CONSTANTS_JBS;
 using namespace std;
 
 
-float sgn(float v) {
-    return (v > 0) - (v < 0);
+struct state {
+	double X, Y, yaw, vx, vy, w;
+
+	state operator*=(float a) {
+		return state{
+			this->X * a,
+			this->Y * a,
+			this->yaw * a,
+			this->vx * a,
+			this->vy * a,
+			this->w * a };
+	}
+
+	state operator+(state a) {
+		return state{
+			this->X + a.X,
+			this->Y + a.Y,
+			this->yaw + a.yaw,
+			this->vx + a.vx,
+			this->vy + a.vy,
+			this->w + a.w };
+	}
+};
+
+state operator*(state a, float b) {
+	return a *= b;
 }
 
-struct y {
-    float X;
-    float Y;
-    float yaw;
-    float vx;
-    float vy;
-    float r; 
+state operator*(float a, state b) {
+	return b *= a;
+}
 
-    y operator*(float a) {
-        return y{ 
-            this->X * a, 
-            this->Y * a, 
-            this->yaw * a, 
-            this->vx * a, 
-            this->vy * a,
-            this->r * a};
-    }
-
-    y operator+(float a) {
-        return y{
-            this->X + a,
-            this->Y + a,
-            this->yaw + a,
-            this->vx + a,
-            this->vy + a,
-            this->r + a };
-    }
-
-    y operator+(y a) {
-        return y{
-            this->X + a.X,
-            this->Y + a.Y,
-            this->yaw + a.yaw,
-            this->vx + a.vx,
-            this->vy + a.vy,
-            this->r + a.r };
-    }
+struct controlInfluence {
+	double throttle, steeringAngle, brakes;
 };
 
-struct u {
-    float throttle;
-    float steeringAngle;
-    float brakes;
-
-    u operator+(u a) {
-        return u{
-            this->throttle + a.throttle,
-            this->steeringAngle + a.steeringAngle,
-            this->brakes + a.brakes
-        };
-    }
-
-    u operator+(float a) {
-        return u{
-            this->throttle + a,
-            this->steeringAngle + a,
-            this->brakes + a 
-        };
-    }
-
-    u operator*(float a) {
-        return u{
-            this->throttle + a,
-            this->steeringAngle + a,
-            this->brakes + a
-        };
-    }
-};
 
 class DynamicBycicleModel {
 private:
-    y old = { 0, 0, 0, 0, 0, 0 };
-    float ar = 0.0f;
-    float af = 0.0f;
-    float t = 0.0f;
-    u instant;
+	state carState = { 0, 0, 0, 0, 0, 0 };
+	double t = 0;
 
-    float Fdrv() {
-        return instant.throttle * Cm * instant.throttle;
-    }
+	//Forces of the longitudinal dynamics of the car
+	double Fdrv(controlInfluence input) {
+		return input.throttle * Cm;
+	}
+	double Frrr(state actual) {
+		return Crr * tanh(actual.vx);
+	}
+	double Frrf(state actual) {
+		return Crr * tanh(actual.vx);
+	}
+	double Fdrag(state actual) {
+		return Cd * actual.vx * actual.vx;
+	}
+	double Fbf(controlInfluence input, state actual) {
+		return input.brakes * Cbf * tanh(actual.vx);
+	}
+	double Fbr(controlInfluence input, state actual) {
+		return input.brakes * Cbr * tanh(actual.vx);
+	}
+	//Forces of the lateral dynamics of the car
+	double Fry(double ar) {
+		return 2 * Cx * ar;
+	}
+	double Ffy(double af) {
+		return 2 * Cx * af;
+	}
 
-    float Frrr() {
-        return Crr * tanh(old.vx);
-    }
+	double Ftransversal(controlInfluence input, state actual, double af, double ar) {
+		return Fdrv(input)
+			- Frrr(actual)
+			- Frrf(actual) * cos(input.steeringAngle)
+			- Fdrag(actual)
+			- Fbf(input, actual) * cos(input.steeringAngle)
+			- Fbr(input, actual)
+			- Ffy(af) * sin(input.steeringAngle);
+	}
 
-    float Frrf() {
-        return Frrr();
-    }
+	double Flateral(controlInfluence input, state actual, double af, double ar) {
+		return -Frrf(actual) * sin(input.steeringAngle)
+			- Fbf(input, actual) * sin(input.steeringAngle)
+			+ Fry(ar)
+			+ Ffy(af) * cos(input.steeringAngle);
+	}
 
-    float Fdrag() {
-        return Cd * old.vx * old.vx;
-    }
+	double L(controlInfluence input, state actual, double af, double ar) {
+		return -Frrf(actual) * sin(input.steeringAngle) * lf
+			- Fbf(input, actual) * sin(input.steeringAngle) * lf
+			- Fry(ar) * lr
+			+ Ffy(af) * cos(input.steeringAngle) * lf;
+	}
 
-    float Fbf() {
-        return instant.brakes * Cbf * tanh(old.vx);
-    }
+	state Derivatives(controlInfluence input, state actual, double af, double ar) {
+		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
+		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
+		double dyawdt = actual.w;
+		double dvxdt = (Ftransversal(input, actual, af, ar) / m + actual.vy * actual.w);
+		double dvydt = (Flateral(input, actual, af, ar) / m - actual.vx * actual.w);
+		//cout << L(input, actual, af, ar) << endl;
+		double dwdt = L(input, actual, af, ar) / Iz;
+		//cout << dwdt << "\n";
 
-    float Fbr() {
-        return instant.brakes * Cbr * tanh(old.vx);
-    }
-
-    float Fry() {
-        return magicFy(ar, 0, m / 4);
-    }
-
-    float Ffy() {
-        return magicFy(af, 0, m / 4);
-    }
-
-    float Frx() {
-        return magicFx(ar, 0, m / 4);
-    }
-
-    float Ffx() {
-        return magicFx(af, 0, m / 4);
-    }
-
-    float magicFy(float alpha, float gamma, float Fz) {
-        float gammay = gamma * LGAY;
-        float Fz0 = FNOMIN;
-
-        float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
-        float muy = (PDY1 + PDY2 * dfz) * (1 - PDY3 * gammay * gammay) * LMUY;;
-        float Cy = PCY1 * LCY;
-
-        float Dy = muy * Fz;
-
-        float Ky = PKY1 * Fz0 * sin(2 * atan2(Fz, (PKY2 * Fz0 * LFZO))) * (1 - PKY3 * abs(gammay)) * LFZO * LKY;
-        float By = Ky / (Cy * Dy);
-
-        float SHy = (PHY1 + PHY2 * dfz) * LHY + PHY3 * gammay;
-
-        float alphay = alpha + SHy;
-        float Ey = (PEY1 + PEY2 * dfz) * (1 - (PEY3 + PEY4 * gammay) * sgn(alphay)) * LEY;
-
-        float SVy = Fz * ((PVY1 + PVY2 * dfz) * LVY + (PVY3 + PVY4 * dfz) * gammay) * LMUY;
-
-        float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
-        return Fy0;
-    }
-
-    float magicFx(float kappa, float gamma, float Fz) {
-        float gammax = gamma * LGAX;
-        float Fz0 = FNOMIN;
-
-        float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
-        float mux = (PDX1 + PDX2 * dfz) * (1 - PDX3 * gammax * gammax) * LMUX;;
-        float Cx = PCX1 * LCX;
-
-        float Dx = mux * Fz;
-
-        float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
-        float Bx = Kx / (Cx * Dx);
-
-        float SHx = (PHX1 + PHX2 * dfz) * LHX;
-
-        float kappax = kappa + SHx;
-        float Ex = (PEX1 + PEX2 * dfz + PEX3 * dfz * dfz) * (1 - PEX4 * sgn(kappax)) * LEX;
-
-        float Svx = Fz * (PVX1 + PVX2 * dfz) * LVX * LMUX;
-
-        float Fx0 = Dx * sin(Cx * atan(Bx * kappax - Ex * (Bx * kappax - atan(Bx * kappax)))) + Svx;
-        return Fx0;
-    }
-
-    float L() {  // Angular momentum
-        //cout << "\tFfy() = " << Ffy() << endl;
-        //cout << "\tFbf() = " << Fbf() << endl;
-        //cout << "\tFrrf() = " << Frrf() << endl;
-        //cout << "\tFry() = " << Fry() << endl;
-        //cout << "\tFrrf() = " << Frrf() << endl;
-        return -lr * Fry() + lf * (Ffy() * cos(instant.steeringAngle)
-            - Fbf() * sin(instant.steeringAngle)
-            - Frrf() * sin(instant.steeringAngle)
-            + Ffx() * sin(instant.steeringAngle))
-            + lr * (- Frx());
-    }
-
-    float Flateral() {
-        float k = cos(atan(old.vy / old.vx));
-        float Faero = 0.0f;
-        if (k == k) {
-            Faero = Fdrag() * k;
-        }
-        return -Frrr() - Fbr() + Fdrv()
-            - Faero
-            - Fbf() * cos(instant.steeringAngle) - Frrf() * cos(instant.steeringAngle) - Ffy() * sin(instant.steeringAngle)
-            + Ffx() * cos(instant.steeringAngle) + Frx();
-    }
-
-    float Ftransversal() {
-        float k = sin(atan(old.vy / old.vx));
-        float Faero = 0.0f;
-        if (k == k) {
-            Faero = Fdrag() * k;
-        }
-        return Fry() - Faero - (Fbf() + Frrf()) * sin(instant.steeringAngle) + Ffy() * cos(instant.steeringAngle);
-    }
-
-    float Ftotal() {
-        cout << "\tFlateral() = " << Flateral() << endl;
-        cout << "\tFtransversal() = " << Ftransversal() << endl;
-        return sqrt(pow(Flateral(), 2) + pow(Ftransversal(), 2));
-    }
-
-    y f(y data) {
-        float X_intermidiate = old.vx * cos(old.yaw) + old.vy * sin(old.yaw);
-        float Y_intermidiate = old.vx * sin(old.yaw) + old.vy * cos(old.yaw);
-        float yaw_intermidiate = old.yaw + old.r;
-        float vx_intermidiate = old.vx + (Flateral() / m + old.vy * old.r);
-        float vy_intermidiate = (Ftransversal() / m - old.vx * old.r);
-        float r_intermidiate = L() / Iz;
-
-        return y{
-        X_intermidiate,
-        Y_intermidiate,
-        yaw_intermidiate,
-        vx_intermidiate,
-        vy_intermidiate,
-        r_intermidiate };
-    }
-
+		return state{
+			dxdt,
+			dydt,
+			dyawdt,
+			dvxdt,
+			dvydt,
+			dwdt
+		};
+	}
 
 public:
-    float getX() const { return old.X; }
-    float getY() const { return old.Y; }
-    float getyaw() const { return old.yaw; }
-    float getvx() const { return old.vx; }
-    float getvy() const { return old.vy; }
-    float getr() const { return old.r; }
-    float gett() const { return t; }
+	float getX() const { return carState.X; }
+	float getY() const { return carState.Y; }
+	float getyaw() const { return carState.yaw; }
+	float getvx() const { return carState.vx; }
+	float getvy() const { return carState.vy; }
+	float getr() const { return carState.w; }
+	float gett() const { return t; }
 
-
-    void update(u un) {
-        instant.throttle = un.throttle;
-        instant.steeringAngle = un.steeringAngle;
-        instant.brakes = un.brakes;
-
-        float h = dt;
-        y k1 = f(old);
-        y k2 = f(old + k1 * (h / 2));
-        y k3 = f(old + k2 * (h / 2));
-        y k4 = f(old + k3 * h);
-
-        y n1 = old + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
-
-        old = n1;
-
-    }
+	void updateEuler(controlInfluence input) {
+		double af = 0;
+		double ar = 0;
+		float vrx = carState.vx;
+		float vry = carState.vy - carState.w * lr;
+		if (vrx == 0) {
+			ar = 0;
+		}
+		else {
+			ar = atan2((carState.vy - lr * carState.w), carState.vx);
+		}
+		float vfx = carState.vx;
+		float vfy = carState.vy + carState.w * lf;
+		float ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
+		float vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
+		if (ve == 0) {
+			af = 0;
+		}
+		else {
+			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;;
+		}
+		t += dt;
+		carState = carState + dt * Derivatives(input, carState, af, ar);
+	}
 };
 
-
 ostream& operator<<(ostream& s, const DynamicBycicleModel& sdbm) {
-    return (s << "x(" << sdbm.gett() << ") = {" << sdbm.getX() <<
-        " " << sdbm.getY() << " " << sdbm.getyaw() <<
-        " " << sdbm.getvx() << " " << sdbm.getvy() << " " << sdbm.getr() << " }");
+	return (s << "x(" << sdbm.gett() << ") = {" << sdbm.getX() <<
+		" " << sdbm.getY() << " " << sdbm.getyaw() <<
+		" " << sdbm.getvx() << " " << sdbm.getvy() << " " << sdbm.getr() << " }");
 }
 
 
 int main()
 {
-    int iterations_by_one_step = 50;
-    DynamicBycicleModel A;
-    std::ifstream in("input.txt");
-    if (in.is_open())
-    {
-        int n;
-        in >> n;
-        for (int i = 0; i < n; i++) {
-            float a, sa, br;
-            in >> a >> sa >> br;
+	int iterations_by_one_step = 50;
+	DynamicBycicleModel A;
+	std::ifstream in("input.txt");
+	if (in.is_open())
+	{
+		int n;
+		in >> n;
+		for (int i = 0; i < n; i++) {
+			float a, sa, br;
+			in >> a >> sa >> br;
 
-            for (int j = 0; j < iterations_by_one_step; j++) {
-                A.update(u{a, sa, br});
-            }
-            cout << A << endl;
-        }
-    }
-    in.close();
+			for (int j = 0; j < iterations_by_one_step; j++) {
+				A.updateEuler(controlInfluence{ a, sa, br });
+			}
+			cout << A << endl;
+		}
+	}
+	in.close();
 }
