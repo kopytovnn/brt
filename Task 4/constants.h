@@ -13,7 +13,9 @@ namespace CONSTANTS_JBS
     const float Cd = 1.53f;
     const float Cbf = 5411.0f;
     const float Cbr = 2650.0f;
-    const float Cx = 20000.0f;
+    const float Cx = -20000;
     const float Iz = 134.0f;
+    const double Iw = 0.25;
+    const double vxmin = 0.3;
 }
 #endif
