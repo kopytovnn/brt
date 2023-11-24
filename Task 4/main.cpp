@@ -55,8 +55,6 @@ struct controlInfluence {
 class DynamicBycicleModel {
 private:
 	state carState = { 0, 0, 0, 0, 0, 0, 0, 0 };
-	double kappaf = 0;
-	double kappar = 0;
 	double t = 0;
 
 	//Forces of the longitudinal dynamics of the car
@@ -198,8 +196,8 @@ private:
 		else {
 			af = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
 		}
-		kappaf = (actual.omegaf * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
-		kappar = (actual.omegar * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
+		double kappaf = (actual.omegaf * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
+		double kappar = (actual.omegar * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
 
 
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
