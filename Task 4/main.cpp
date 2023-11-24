@@ -177,7 +177,31 @@ private:
 		return epsilonwr;
 	}
 
-	state Derivatives(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
+	state Derivatives(controlInfluence input, state actual) {
+		double af = 0;
+		double ar = 0;
+		float vrx = actual.vx;
+		float vry = actual.vy - actual.w * lr;
+		if (vrx == 0) {
+			ar = 0;
+		}
+		else {
+			ar = atan2((actual.vy - lr * actual.w), actual.vx);
+		}
+		float vfx = actual.vx;
+		float vfy = actual.vy + actual.w * lf;
+		float ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
+		float vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
+		if (ve == 0) {
+			af = 0;
+		}
+		else {
+			af = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
+		}
+		kappaf = (actual.omegaf * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
+		kappar = (actual.omegar * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
+
+
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
 		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
 		double dyawdt = actual.w;
@@ -212,34 +236,11 @@ public:
 	float gett() const { return t; }
 
 	void updateRK4(controlInfluence input) {
-		double af = 0;
-		double ar = 0;
-		float vrx = carState.vx;
-		float vry = carState.vy - carState.w * lr;
-		if (vrx == 0) {
-			ar = 0;
-		}
-		else {
-			ar = atan2((carState.vy - lr * carState.w), carState.vx);
-		}
-		float vfx = carState.vx;
-		float vfy = carState.vy + carState.w * lf;
-		float ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
-		float vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
-		if (ve == 0) {
-			af = 0;
-		}
-		else {
-			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;
-		}
-		kappaf = (carState.omegaf * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
-		kappar = (carState.omegar * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
-
 		float h = dt;
-		state k1 = Derivatives(input, carState, af, ar, kappaf, kappar);
-		state k2 = Derivatives(input, carState + k1 * (h / 2), af, ar, kappaf, kappar);
-		state k3 = Derivatives(input, carState + k2 * (h / 2), af, ar, kappaf, kappar);
-		state k4 = Derivatives(input, carState + k3 * h, af, ar, kappaf, kappar);
+		state k1 = Derivatives(input, carState);
+		state k2 = Derivatives(input, carState + k1 * (h / 2));
+		state k3 = Derivatives(input, carState + k2 * (h / 2));
+		state k4 = Derivatives(input, carState + k3 * h);
 
 		carState = carState + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
 		//carState = carState + Derivatives(input, carState, af, ar, kappaf, kappar) * dt;
