@@ -54,7 +54,7 @@ struct controlInfluence {
 
 class DynamicBycicleModel {
 private:
-	state carState = { 0, 0, 0, 0, 0, 0 };
+	state carState = { 0, 0, 0, 0, 0, 0, 0, 0 };
 	double kappaf = 0;
 	double kappar = 0;
 	double t = 0;
@@ -181,6 +181,7 @@ private:
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
 		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
 		double dyawdt = actual.w;
+		//cout << Ftransversal(input, actual, af, ar, kappaf, kappar) << endl;
 		double dvxdt = (Ftransversal(input, actual, af, ar, kappaf, kappar) / m + actual.vy * actual.w);
 		double dvydt = (Flateral(input, actual, af, ar, kappaf) / m - actual.vx * actual.w);
 		//cout << L(input, actual, af, ar) << endl;
@@ -210,7 +211,7 @@ public:
 	float getr() const { return carState.w; }
 	float gett() const { return t; }
 
-	void updateEuler(controlInfluence input) {
+	void updateRK4(controlInfluence input) {
 		double af = 0;
 		double ar = 0;
 		float vrx = carState.vx;
@@ -231,10 +232,18 @@ public:
 		else {
 			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;
 		}
-		kappaf = (frontWheelAngleAcceleration(input, carState, kappaf) * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
-		kappar = (rearWheelAngleAcceleration(input, carState, kappar) * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
+		kappaf = (carState.omegaf * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
+		kappar = (carState.omegar * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
+
+		float h = dt;
+		state k1 = Derivatives(input, carState, af, ar, kappaf, kappar);
+		state k2 = Derivatives(input, carState + k1 * (h / 2), af, ar, kappaf, kappar);
+		state k3 = Derivatives(input, carState + k2 * (h / 2), af, ar, kappaf, kappar);
+		state k4 = Derivatives(input, carState + k3 * h, af, ar, kappaf, kappar);
+
+		carState = carState + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
+		//carState = carState + Derivatives(input, carState, af, ar, kappaf, kappar) * dt;
 		t += dt;
-		carState = carState + dt * Derivatives(input, carState, af, ar, kappaf, kappar);
 	}
 };
 
@@ -259,7 +268,7 @@ int main()
 			in >> a >> sa >> br;
 
 			for (int j = 0; j < iterations_by_one_step; j++) {
-				A.updateEuler(controlInfluence{ a, sa, br });
+				A.updateRK4(controlInfluence{ a, sa, br });
 			}
 			cout << A << endl;
 		}
