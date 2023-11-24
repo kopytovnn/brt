@@ -12,7 +12,7 @@ float sgn(float v) {
 }
 
 struct state {
-	double X, Y, yaw, vx, vy, w;
+	double X, Y, yaw, vx, vy, w, omegaf, omegar;
 
 	state operator*=(float a) {
 		return state{
@@ -21,7 +21,9 @@ struct state {
 			this->yaw * a,
 			this->vx * a,
 			this->vy * a,
-			this->w * a };
+			this->w * a,
+			this->omegaf * a,
+			this->omegar * a };
 	}
 
 	state operator+(state a) {
@@ -31,7 +33,9 @@ struct state {
 			this->yaw + a.yaw,
 			this->vx + a.vx,
 			this->vy + a.vy,
-			this->w + a.w };
+			this->w + a.w,
+			this->omegaf + a.omegaf,
+			this->omegar + a.omegar };
 	}
 };
 
@@ -50,7 +54,9 @@ struct controlInfluence {
 
 class DynamicBycicleModel {
 private:
-	state carState = { 0, 0, 0, 0, 0, 0 };
+	state carState = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	double kappaf = 0;
+	double kappar = 0;
 	double t = 0;
 
 	//Forces of the longitudinal dynamics of the car
@@ -102,40 +108,87 @@ private:
 	double Ffy(double af) {
 		return 2 * FPacejkalateral(af, 0, m * 9.81 / 4);
 	}
+	double FPacejkatransversal(float kappa, float gamma, float Fz) {
+		float gammax = gamma * LGAX;
+		float Fz0 = FNOMIN;
 
-	double Ftransversal(controlInfluence input, state actual, double af, double ar) {
+		float dfz = (Fz - Fz0 * LFZO) / (Fz0 * LFZO);
+		float mux = (PDX1 + PDX2 * dfz) * (1 - PDX3 * gammax * gammax) * LMUX;;
+		float Cx = PCX1 * LCX;
+
+		float Dx = mux * Fz;
+
+		float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
+		float Bx = Kx / (Cx * Dx);
+
+		float SHx = (PHX1 + PHX2 * dfz) * LHX;
+
+		float kappax = kappa + SHx;
+		float Ex = (PEX1 + PEX2 * dfz + PEX3 * dfz * dfz) * (1 - PEX4 * sgn(kappax)) * LEX;
+
+		float Svx = Fz * (PVX1 + PVX2 * dfz) * LVX * LMUX;
+
+		float Fx0 = Dx * sin(Cx * atan(Bx * kappax - Ex * (Bx * kappax - atan(Bx * kappax)))) + Svx;
+		return Fx0;
+	}
+	double Frx(double kappar) {
+		return 2 * FPacejkatransversal(kappar, 0, m * 9.81 / 4);
+	}
+	double Ffx(double kappaf) {
+		return 2 * FPacejkatransversal(kappaf, 0, m * 9.81 / 4);
+	}
+
+	double Ftransversal(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
 		return Fdrv(input)
 			- Frrr(actual)
 			- Frrf(actual) * cos(input.steeringAngle)
 			- Fdrag(actual)
 			- Fbf(input, actual) * cos(input.steeringAngle)
 			- Fbr(input, actual)
-			- Ffy(af) * sin(input.steeringAngle);
+			- Ffy(af) * sin(input.steeringAngle)
+			+ Ffx(kappaf) * cos(input.steeringAngle)
+			+ Frx(kappar);
 	}
 
-	double Flateral(controlInfluence input, state actual, double af, double ar) {
+	double Flateral(controlInfluence input, state actual, double af, double ar, double kappaf) {
 		return -Frrf(actual) * sin(input.steeringAngle)
 			- Fbf(input, actual) * sin(input.steeringAngle)
 			+ Fry(ar)
-			+ Ffy(af) * cos(input.steeringAngle);
+			+ Ffy(af) * cos(input.steeringAngle)
+			+ Ffx(kappaf) * sin(input.steeringAngle);
 	}
 
-	double L(controlInfluence input, state actual, double af, double ar) {
+	double L(controlInfluence input, state actual, double af, double ar, double kappaf) {
 		return -Frrf(actual) * sin(input.steeringAngle) * lf
 			- Fbf(input, actual) * sin(input.steeringAngle) * lf
 			- Fry(ar) * lr
-			+ Ffy(af) * cos(input.steeringAngle) * lf;
+			+ Ffy(af) * cos(input.steeringAngle) * lf
+			+ Ffx(kappaf) * sin(input.steeringAngle) * lf;
 	}
 
-	state Derivatives(controlInfluence input, state actual, double af, double ar) {
+	double frontWheelAngleAcceleration(controlInfluence input, state actual, double kappaf) {
+		double frontWheelMomentum = UNLOADED_RADIUS * (0.5 * Ffx(kappaf) - Frrf(actual) - Fbf(input, actual));
+		double epsilonwr = frontWheelMomentum / Iw;
+		return epsilonwr;
+	}
+	double rearWheelAngleAcceleration(controlInfluence input, state actual, double kappar) {
+		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) - 0.5 * Frx(kappar) - Frrr(actual) - Fbr(input, actual));
+		double epsilonwr = rearWheelMomentum / Iw;
+		return epsilonwr;
+	}
+
+	state Derivatives(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
 		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
 		double dyawdt = actual.w;
-		double dvxdt = (Ftransversal(input, actual, af, ar) / m + actual.vy * actual.w);
-		double dvydt = (Flateral(input, actual, af, ar) / m - actual.vx * actual.w);
+		//cout << Ftransversal(input, actual, af, ar, kappaf, kappar) << endl;
+		double dvxdt = (Ftransversal(input, actual, af, ar, kappaf, kappar) / m + actual.vy * actual.w);
+		double dvydt = (Flateral(input, actual, af, ar, kappaf) / m - actual.vx * actual.w);
 		//cout << L(input, actual, af, ar) << endl;
-		double dwdt = L(input, actual, af, ar) / Iz;
+		double dwdt = L(input, actual, af, ar, kappaf) / Iz;
 		//cout << dwdt << "\n";
+		double domegafdt = frontWheelAngleAcceleration(input, actual, kappaf);
+		double domegardt = rearWheelAngleAcceleration(input, actual, kappar);
 
 		return state{
 			dxdt,
@@ -143,7 +196,9 @@ private:
 			dyawdt,
 			dvxdt,
 			dvydt,
-			dwdt
+			dwdt,
+			domegafdt,
+			domegardt
 		};
 	}
 
@@ -156,7 +211,7 @@ public:
 	float getr() const { return carState.w; }
 	float gett() const { return t; }
 
-	void updateEuler(controlInfluence input) {
+	void updateRK4(controlInfluence input) {
 		double af = 0;
 		double ar = 0;
 		float vrx = carState.vx;
@@ -175,10 +230,20 @@ public:
 			af = 0;
 		}
 		else {
-			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;;
+			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;
 		}
+		kappaf = (carState.omegaf * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
+		kappar = (carState.omegar * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
+
+		float h = dt;
+		state k1 = Derivatives(input, carState, af, ar, kappaf, kappar);
+		state k2 = Derivatives(input, carState + k1 * (h / 2), af, ar, kappaf, kappar);
+		state k3 = Derivatives(input, carState + k2 * (h / 2), af, ar, kappaf, kappar);
+		state k4 = Derivatives(input, carState + k3 * h, af, ar, kappaf, kappar);
+
+		carState = carState + (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
+		//carState = carState + Derivatives(input, carState, af, ar, kappaf, kappar) * dt;
 		t += dt;
-		carState = carState + dt * Derivatives(input, carState, af, ar);
 	}
 };
 
@@ -203,7 +268,7 @@ int main()
 			in >> a >> sa >> br;
 
 			for (int j = 0; j < iterations_by_one_step; j++) {
-				A.updateEuler(controlInfluence{ a, sa, br });
+				A.updateRK4(controlInfluence{ a, sa, br });
 			}
 			cout << A << endl;
 		}
