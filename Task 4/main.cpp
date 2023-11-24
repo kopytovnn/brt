@@ -146,8 +146,8 @@ private:
 			- Fbf(input, actual) * cos(input.steeringAngle)
 			- Fbr(input, actual)
 			- Ffy(af) * sin(input.steeringAngle)
-			+ Ffx(kappaf)
-			+ Frx(kappar) * cos(input.steeringAngle);
+			+ Ffx(kappaf) * cos(input.steeringAngle)
+			+ Frx(kappar);
 	}
 
 	double Flateral(controlInfluence input, state actual, double af, double ar, double kappaf) {
@@ -167,12 +167,12 @@ private:
 	}
 
 	double frontWheelAngleAcceleration(controlInfluence input, state actual, double kappaf) {
-		double frontWheelMomentum = UNLOADED_RADIUS * (Ffx(kappaf) - Frrf(actual) - Fbf(input, actual));
+		double frontWheelMomentum = UNLOADED_RADIUS * (0.5 * Ffx(kappaf) - Frrf(actual) - Fbf(input, actual));
 		double epsilonwr = frontWheelMomentum / Iw;
 		return epsilonwr;
 	}
 	double rearWheelAngleAcceleration(controlInfluence input, state actual, double kappar) {
-		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) - Frx(kappar) - Frrr(actual) - Fbr(input, actual));
+		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) - 0.5 * Frx(kappar) - Frrr(actual) - Fbr(input, actual));
 		double epsilonwr = rearWheelMomentum / Iw;
 		return epsilonwr;
 	}
@@ -229,7 +229,7 @@ public:
 			af = 0;
 		}
 		else {
-			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;;
+			af = atan2((carState.vy + lf * carState.w), carState.vx) - input.steeringAngle;
 		}
 		kappaf = (frontWheelAngleAcceleration(input, carState, kappaf) * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
 		kappar = (rearWheelAngleAcceleration(input, carState, kappar) * UNLOADED_RADIUS - carState.vx) / max(carState.vx, vxmin);
