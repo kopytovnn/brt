@@ -178,26 +178,27 @@ private:
 	state Derivatives(controlInfluence input, state actual) {
 		double af = 0;
 		double ar = 0;
-		float vrx = actual.vx;
-		float vry = actual.vy - actual.w * lr;
+		double vrx = actual.vx;
+		double vry = actual.vy - actual.w * lr;
 		if (vrx == 0) {
 			ar = 0;
 		}
 		else {
 			ar = atan2((actual.vy - lr * actual.w), actual.vx);
 		}
-		float vfx = actual.vx;
-		float vfy = actual.vy + actual.w * lf;
-		float ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
-		float vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
+		double vfx = actual.vx;
+		double vfy = actual.vy + actual.w * lf;
+		double ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
+		double vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
 		if (ve == 0) {
 			af = 0;
 		}
 		else {
 			af = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
 		}
-		double kappaf = (actual.omegaf * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
-		double kappar = (actual.omegar * UNLOADED_RADIUS - actual.vx) / max(actual.vx, vxmin);
+
+		double kappaf = (actual.omegaf * UNLOADED_RADIUS - ve) / max(ve, vxmin);
+		double kappar = (actual.omegar * UNLOADED_RADIUS - vrx) / max(vrx, vxmin);
 
 
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
