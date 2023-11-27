@@ -170,7 +170,7 @@ private:
 		return epsilonwr;
 	}
 	double rearWheelAngleAcceleration(controlInfluence input, state actual, double kappar) {
-		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) - 0.5 * Frx(kappar) - Frrr(actual) - Fbr(input, actual));
+		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) + 0.5 * Frx(kappar) - Frrr(actual) - Fbr(input, actual));
 		double epsilonwr = rearWheelMomentum / Iw;
 		return epsilonwr;
 	}
@@ -178,38 +178,24 @@ private:
 	state Derivatives(controlInfluence input, state actual) {
 		double af = 0;
 		double ar = 0;
+
 		double vrx = actual.vx;
 		double vry = actual.vy - actual.w * lr;
-		if (vrx == 0) {
-			ar = 0;
-		}
-		else {
-			ar = atan2((actual.vy - lr * actual.w), actual.vx);
-		}
+		ar = atan2((actual.vy - lr * actual.w), actual.vx);
 		double vfx = actual.vx;
 		double vfy = actual.vy + actual.w * lf;
+		af = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
+		
 		double ve = vfx * cos(input.steeringAngle) + vfy * sin(input.steeringAngle);
-		double vn = -vfx * sin(input.steeringAngle) + vfy * cos(input.steeringAngle);
-		if (ve == 0) {
-			af = 0;
-		}
-		else {
-			af = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
-		}
-
 		double kappaf = (actual.omegaf * UNLOADED_RADIUS - ve) / max(ve, vxmin);
 		double kappar = (actual.omegar * UNLOADED_RADIUS - vrx) / max(vrx, vxmin);
-
 
 		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
 		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
 		double dyawdt = actual.w;
-		//cout << Ftransversal(input, actual, af, ar, kappaf, kappar) << endl;
 		double dvxdt = (Ftransversal(input, actual, af, ar, kappaf, kappar) / m + actual.vy * actual.w);
 		double dvydt = (Flateral(input, actual, af, ar, kappaf) / m - actual.vx * actual.w);
-		//cout << L(input, actual, af, ar) << endl;
 		double dwdt = L(input, actual, af, ar, kappaf) / Iz;
-		//cout << dwdt << "\n";
 		double domegafdt = frontWheelAngleAcceleration(input, actual, kappaf);
 		double domegardt = rearWheelAngleAcceleration(input, actual, kappar);
 
