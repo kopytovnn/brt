@@ -165,12 +165,12 @@ private:
 	}
 
 	double frontWheelAngleAcceleration(controlInfluence input, state actual, double kappaf) {
-		double frontWheelMomentum = UNLOADED_RADIUS * (0.5 * Ffx(kappaf) - Frrf(actual) - Fbf(input, actual));
+		double frontWheelMomentum = UNLOADED_RADIUS * (Ffx(kappaf) - Frrf(actual) - Fbf(input, actual));
 		double epsilonwr = frontWheelMomentum / Iw;
 		return epsilonwr;
 	}
 	double rearWheelAngleAcceleration(controlInfluence input, state actual, double kappar) {
-		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) + 0.5 * Frx(kappar) - Frrr(actual) - Fbr(input, actual));
+		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) + Frx(kappar) - Frrr(actual) - Fbr(input, actual));
 		double epsilonwr = rearWheelMomentum / Iw;
 		return epsilonwr;
 	}
