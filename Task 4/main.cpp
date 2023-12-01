@@ -116,7 +116,7 @@ private:
 
 		float Dx = mux * Fz;
 
-		float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
+		float Kx = Fz * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
 		float Bx = Kx / (Cx * Dx);
 
 		float SHx = (PHX1 + PHX2 * dfz) * LHX;
@@ -137,28 +137,22 @@ private:
 	}
 
 	double Ftransversal(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
-		return Fdrv(input)
-			- Frrr(actual)
-			- Frrf(actual) * cos(input.steeringAngle)
+		return 
 			- Fdrag(actual)
-			- Fbf(input, actual) * cos(input.steeringAngle)
-			- Fbr(input, actual)
 			- Ffy(af) * sin(input.steeringAngle)
 			+ Ffx(kappaf) * cos(input.steeringAngle)
 			+ Frx(kappar);
 	}
 
 	double Flateral(controlInfluence input, state actual, double af, double ar, double kappaf) {
-		return -Frrf(actual) * sin(input.steeringAngle)
-			- Fbf(input, actual) * sin(input.steeringAngle)
+		return 
 			+ Fry(ar)
 			+ Ffy(af) * cos(input.steeringAngle)
 			+ Ffx(kappaf) * sin(input.steeringAngle);
 	}
 
 	double L(controlInfluence input, state actual, double af, double ar, double kappaf) {
-		return -Frrf(actual) * sin(input.steeringAngle) * lf
-			- Fbf(input, actual) * sin(input.steeringAngle) * lf
+		return 
 			- Fry(ar) * lr
 			+ Ffy(af) * cos(input.steeringAngle) * lf
 			+ Ffx(kappaf) * sin(input.steeringAngle) * lf;
