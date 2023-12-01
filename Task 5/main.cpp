@@ -135,7 +135,7 @@ private:
 
 		float Dx = mux * Fz;
 
-		float Kx = Fz0 * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
+		float Kx = Fz * (PKX1 + PKX2 * dfz) * exp(PKX3 * dfz) * LKX;
 		float Bx = Kx / (Cx * Dx);
 
 		float SHx = (PHX1 + PHX2 * dfz) * LHX;
@@ -163,48 +163,42 @@ private:
 	}
 	double Frx(double ar, double kappar) {
 		// return 2 * FPacejkatransversal(kappar, 0, m * 9.81 / 4);
-		return 2 * FPacejkalateralCombined(ar, kappar);
+		return 2 * FPacejkatransversalCombined(ar, kappar);
 	}
 	double Ffx(double af, double kappaf) {
 		// return 2 * FPacejkatransversal(kappaf, 0, m * 9.81 / 4);
-		return 2 * FPacejkalateralCombined(af, kappaf);
+		return 2 * FPacejkatransversalCombined(af, kappaf);
 	}
 
 	double Ftransversal(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
-		return Fdrv(input)
-			- Frrr(actual)
-			- Frrf(actual) * cos(input.steeringAngle)
+		return 
 			- Fdrag(actual)
-			- Fbf(input, actual) * cos(input.steeringAngle)
-			- Fbr(input, actual)
 			- Ffy(af, kappaf) * sin(input.steeringAngle)
 			+ Ffx(af, kappaf) * cos(input.steeringAngle)
 			+ Frx(ar, kappar);
 	}
 
 	double Flateral(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
-		return -Frrf(actual) * sin(input.steeringAngle)
-			- Fbf(input, actual) * sin(input.steeringAngle)
+		return 
 			+ Fry(ar, kappar)
 			+ Ffy(af, kappaf) * cos(input.steeringAngle)
 			+ Ffx(af, kappaf) * sin(input.steeringAngle);
 	}
 
 	double L(controlInfluence input, state actual, double af, double ar, double kappaf, double kappar) {
-		return -Frrf(actual) * sin(input.steeringAngle) * lf
-			- Fbf(input, actual) * sin(input.steeringAngle) * lf
+		return 
 			- Fry(ar, kappar) * lr
 			+ Ffy(af, kappaf) * cos(input.steeringAngle) * lf
 			+ Ffx(af, kappaf) * sin(input.steeringAngle) * lf;
 	}
 
 	double frontWheelAngleAcceleration(controlInfluence input, state actual, double af, double kappaf) {
-		double frontWheelMomentum = UNLOADED_RADIUS * (0.5 * Ffx(af, kappaf) - Frrf(actual) - Fbf(input, actual));
+		double frontWheelMomentum = UNLOADED_RADIUS * (- Ffx(af, kappaf) - Frrf(actual) - Fbf(input, actual)) / 2;
 		double epsilonwr = frontWheelMomentum / Iw;
 		return epsilonwr;
 	}
 	double rearWheelAngleAcceleration(controlInfluence input, state actual, double ar, double kappar) {
-		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) + 0.5 * Frx(ar, kappar) - Frrr(actual) - Fbr(input, actual));
+		double rearWheelMomentum = UNLOADED_RADIUS * (Fdrv(input) - Frx(ar, kappar) - Frrr(actual) - Fbr(input, actual)) / 2;
 		double epsilonwr = rearWheelMomentum / Iw;
 		return epsilonwr;
 	}
