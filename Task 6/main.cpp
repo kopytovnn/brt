@@ -13,12 +13,22 @@ float sgn(float v) {
 }
 
 
-class WheelModel{
+struct chassis {
+	double X, Y, yaw, vx, vy, w;
+};
+
+struct controlInfluence {
+	double throttle, steeringAngle, brakes;
+};
+
+
+class WheelModel {
 public:
 	double gamma, gammay, Fz0, dfz, muy, Fz, Cy, Dy, Ky, By, SHy, SVy, Cyk, Eyk, SHyk;
 	double gammax, mux, Cx, Dx, Kx, Bx, SHx, Svx, Exa, Cxa, SHxa;
 	double alpha, kappa;
-	WheelModel(){
+
+	WheelModel() {
 		gamma = 0.;
 		gammay = gamma * LGAY;
 		Fz0 = FNOMIN;
@@ -43,24 +53,24 @@ public:
 		Bx = Kx / (Cx * Dx);
 		SHx = (PHX1 + PHX2 * dfz) * LHX;
 		Svx = Fz * (PVX1 + PVX2 * dfz) * LVX * LMUX;
-	    Exa = REX1 + REX2 * REX2 * dfz;
+		Exa = REX1 + REX2 * REX2 * dfz;
 		Cxa = RCX1;
 		SHxa = RHX1;
 	}
 	double angleVelocity;
-	WheelModel operator*(float a){
+	WheelModel operator*(float a) {
 		angleVelocity *= a;
 	}
-	WheelModel operator+(WheelModel a){
+	WheelModel operator+(WheelModel a) {
 		angleVelocity += a.angleVelocity;
 	}
-	double pureLateralSlip(double alpha){
+	double pureLateralSlip(double alpha) {
 		float alphay = alpha + SHy;
 		float Ey = (PEY1 + PEY2 * dfz) * (1 - (PEY3 + PEY4 * gammay) * sgn(alphay)) * LEY;
 		float Fy0 = Dy * sin(Cy * atan(By * alphay - Ey * (By * alphay - atan(By * alphay)))) + SVy;
 		return Fy0;
 	}
-	double combinedLateralSlip(double alpha, double kappa){
+	double combinedLateralSlip(double alpha, double kappa) {
 		double Fy0 = pureLateralSlip(alpha);
 		double kappas = kappa + SHyk;
 		double Byk = RBY1 * cos(atan(RBY2 * (alpha - RBY3))) * LYKA;
@@ -70,34 +80,40 @@ public:
 		double Fy = Dyk * cos(Cyk * atan(Byk * kappas - Eyk * (Byk * kappas - atan(Byk * kappas)))) + SVyk;
 		return Fy;
 	}
-	double pureLongitudinalSlip(double kappa){
+	double pureLongitudinalSlip(double kappa) {
 		double kappax = kappa + SHx;
 		double Ex = (PEX1 + PEX2 * dfz + PEX3 * dfz * dfz) * (1 - PEX4 * sgn(kappax)) * LEX;
 		double Fx0 = Dx * sin(Cx * atan(Bx * kappax - Ex * (Bx * kappax - atan(Bx * kappax)))) + Svx;
 		return Fx0;
 	}
-	double combinedLongitudinalSlip(double alpha, double kappa){
+	double combinedLongitudinalSlip(double alpha, double kappa) {
 		double Fx0 = pureLongitudinalSlip(kappa);
 		double Bxa = RBX1 * cos(atan(RBX2 * kappa)) * LXAL;
 		double alphas = alpha + SHxa;
 		double Dxa = Fx0 / cos(Cxa * atan(Bxa * SHxa - Exa * (Bxa * SHxa - atan(Bxa * SHxa))));
 		double Fx = Dxa * cos(Cxa * atan(Bxa * alphas - Exa * (Bxa * alphas - atan(Bxa * alphas))));
-		return Fx;	
+		return Fx;
 	}
 private:
 
 };
 
-class FrontWheel : WheelModel{
+class FrontWheel : WheelModel {
 public:
-	FrontWheel operator*=(float a){
+	FrontWheel operator*=(float a) {
+		FrontWheel neaue = FrontWheel();
 		angleVelocity *= a;
+		neaue.angleVelocity = angleVelocity;
+		return neaue;
 	}
-	FrontWheel operator+(FrontWheel a){
+	FrontWheel operator+(FrontWheel a) {
+		FrontWheel neaue = FrontWheel();
 		angleVelocity += a.angleVelocity;
+		neaue.angleVelocity = angleVelocity;
+		return neaue;
 	}
 
-	void coeffs(controlInfluence input, state actual){
+	void coeffs(controlInfluence input, chassis actual) {
 		double vfx = actual.vx;
 		double vfy = actual.vy + actual.w * lf;
 		double a = atan2((actual.vy + lf * actual.w), actual.vx) - input.steeringAngle;
@@ -108,24 +124,24 @@ public:
 		kappa = k;
 	}
 
-	double Flongitudinal(state parentCar, controlInfluence ci){
+	double Flongitudinal(chassis parentCar, controlInfluence ci) {
 		coeffs(ci, parentCar);
 		return combinedLongitudinalSlip(alpha, kappa);
 	}
-	double Flateral(state parentCar, controlInfluence ci){
+	double Flateral(chassis parentCar, controlInfluence ci) {
 		coeffs(ci, parentCar);
 		return combinedLateralSlip(alpha, kappa);
 	}
 
-	double wheelAngleAcceleration(state parentCar, controlInfluence ci){
+	double wheelAngleAcceleration(chassis parentCar, controlInfluence ci) {
 		double Fx = Flongitudinal(parentCar, ci);
-		double Frrf = Crr * tanh(parentCar.vx);
-		double Fbf = ci.brakes * Cbf * tanh(parentCar.vx);
+		double Frrf = Crr * tanh(parentCar.vx) / 2;
+		double Fbf = ci.brakes * Cbf * tanh(parentCar.vx) / 2;
 		double frontWheelMomentum = UNLOADED_RADIUS * (-Fx - Frrf - Fbf) / 2.;
 		return frontWheelMomentum / Iw;
 	}
 
-	FrontWheel wheelDerivate(state parentCar, controlInfluence ci){
+	FrontWheel wheelDerivate(chassis parentCar, controlInfluence ci) {
 		FrontWheel d = FrontWheel();
 		d.angleVelocity = wheelAngleAcceleration(parentCar, ci);
 		return d;
@@ -133,16 +149,22 @@ public:
 };
 
 
-class RearWheel : WheelModel{
+class RearWheel : WheelModel {
 public:
-	RearWheel operator*=(float a){
+	RearWheel operator*=(float a) {
+		RearWheel neaue = RearWheel();
 		angleVelocity *= a;
+		neaue.angleVelocity = angleVelocity;
+		return neaue;
 	}
-	RearWheel operator+(RearWheel a){
+	RearWheel operator+(RearWheel a) {
+		RearWheel neaue = RearWheel();
 		angleVelocity += a.angleVelocity;
+		neaue.angleVelocity = angleVelocity;
+		return neaue;
 	}
 
-	void coeffs(controlInfluence input, state actual){
+	void coeffs(controlInfluence input, chassis actual) {
 		double vrx = actual.vx;
 		double vry = actual.vy - actual.w * lr;
 		double a = atan2((actual.vy - lr * actual.w), actual.vx);
@@ -155,80 +177,80 @@ public:
 		kappa = k;
 	}
 
-	double Flongitudinal(state parentCar, controlInfluence ci){
+	double Flongitudinal(chassis parentCar, controlInfluence ci) {
 		coeffs(ci, parentCar);
 		return combinedLongitudinalSlip(alpha, kappa);
 	}
-	double Flateral(state parentCar, controlInfluence ci){
+	double Flateral(chassis parentCar, controlInfluence ci) {
 		coeffs(ci, parentCar);
 		return combinedLateralSlip(alpha, kappa);
 	}
 
-	double wheelAngleAcceleration(state parentCar, controlInfluence ci){
+	double wheelAngleAcceleration(chassis parentCar, controlInfluence ci) {
 		double Fx = Flongitudinal(parentCar, ci);
-		double Fdrv = ci.throttle  * Cm;
-		double Frrr = Crr * tanh(parentCar.vx);
-		double Fbr = ci.brakes * Cbr * tanh(parentCar.vx);
+		double Fdrv = ci.throttle * Cm / 2;
+		double Frrr = Crr * tanh(parentCar.vx) / 2;
+		double Fbr = ci.brakes * Cbr * tanh(parentCar.vx) / 2;
 		double frontWheelMomentum = UNLOADED_RADIUS * (Fdrv - Fx - Frrr - Fbr) / 2.;
 		return frontWheelMomentum / Iw;
 	}
 
-	RearWheel wheelDerivate(state parentCar, controlInfluence ci){
+	RearWheel wheelDerivate(chassis parentCar, controlInfluence ci) {
 		RearWheel d = RearWheel();
 		d.angleVelocity = wheelAngleAcceleration(parentCar, ci);
 		return d;
 	}
 };
 
-FrontWheel operator*(FrontWheel a, double b){
+FrontWheel operator*(FrontWheel a, double b) {
 	return a *= b;
 }
 
-FrontWheel operator*(double a, FrontWheel b){
+FrontWheel operator*(double a, FrontWheel b) {
 	return b *= a;
 }
 
-RearWheel operator*(RearWheel a, double b){
+RearWheel operator*(RearWheel a, double b) {
 	return a *= b;
 }
 
-RearWheel operator*(double a, RearWheel b){
+RearWheel operator*(double a, RearWheel b) {
 	return b *= a;
 }
 
 struct state
 {
-	double X, Y, yaw, vx, vy, w; 
+	chassis body;
 	FrontWheel front_left, front_right;
 	RearWheel rear_left, rear_right;
 
 	state operator*=(double a) {
 		return state{
-			X * a,
-			Y * a,
-			yaw * a,
-			vx * a,
-			vy * a,
-			w * a,
+			body.X * a,
+			body.Y * a,
+			body.yaw * a,
+			body.vx * a,
+			body.vy * a,
+			body.w * a,
 			front_left * a,
-			front_right * a, 
+			front_right * a,
 			rear_left * a,
-			rear_right * a};
-		}
+			rear_right * a };
+	}
 
 	state operator+(state a) {
 		return state{
-			X + a.X,
-			Y + a.Y,
-			yaw + a.yaw,
-			vx + a.vx,
-			vy + a.vy,
-			w + a.w,
+			body.X + a.body.X,
+			body.Y + a.body.Y,
+			body.yaw + a.body.yaw,
+			body.vx + a.body.vx,
+			body.vy + a.body.vy,
+			body.w + a.body.w,
 			front_left + a.front_left,
-			front_right + a.front_right, 
+			front_right + a.front_right,
 			rear_left + a.rear_left,
-			rear_right + a.rear_left};
-		}
+			rear_right + a.rear_left };
+	}
 };
 
 state operator*(state a, float b) {
@@ -239,98 +261,96 @@ state operator*(float a, state b) {
 	return b *= a;
 }
 
-struct controlInfluence {
-	double throttle, steeringAngle, brakes;
-};
-
-class Dynamic4WheelsModel{
+class Dynamic4WheelsModel {
 public:
 	state carState;
 	double t = 0;
-	Dynamic4WheelsModel(){
+	Dynamic4WheelsModel() {
 		FrontWheel front_left = FrontWheel();
 		FrontWheel front_right = FrontWheel();
 		RearWheel rear_left = RearWheel();
 		RearWheel rear_right = RearWheel();
-		carState = {0, 0, 0, 0, 0, 0, front_left, front_right, rear_left, rear_right};
+		chassis body = { 0, 0, 0, 0, 0, 0 };
+		carState = { body, front_left, front_right, rear_left, rear_right };
 	}
 
 
-	double Flongitudinal(controlInfluence input, state actual){
+	double Flongitudinal(controlInfluence input, state actual) {
 		double steeringAngle = input.steeringAngle;
 
-		double flWheel = actual.front_left.Flongitudinal(actual, input) * cos(steeringAngle)
-						-actual.front_left.Flateral(actual, input) * sin(steeringAngle);
-		
-		double frWheel = actual.front_right.Flongitudinal(actual, input) * cos(steeringAngle)
-				-actual.front_right.Flateral(actual, input) * sin(steeringAngle);
+		double flWheel = actual.front_left.Flongitudinal(actual.body, input) * cos(steeringAngle)
+			- actual.front_left.Flateral(actual.body, input) * sin(steeringAngle);
 
-		double rlWheel = actual.rear_left.Flongitudinal(actual, input);
-		
-		double rrWheel = actual.rear_right.Flongitudinal(actual, input);
+		double frWheel = actual.front_right.Flongitudinal(actual.body, input) * cos(steeringAngle)
+			- actual.front_right.Flateral(actual.body, input) * sin(steeringAngle);
+
+		double rlWheel = actual.rear_left.Flongitudinal(actual.body, input);
+
+		double rrWheel = actual.rear_right.Flongitudinal(actual.body, input);
 
 		return flWheel + frWheel + rlWheel + rrWheel;
 	}
 
-	double Flateral(controlInfluence input, state actual){
+	double Flateral(controlInfluence input, state actual) {
 		double steeringAngle = input.steeringAngle;
 
-		double flWheel = actual.front_left.Flongitudinal(actual, input) * sin(steeringAngle)
-						+ actual.front_left.Flateral(actual, input) * cos(steeringAngle);
-		
-		double frWheel = actual.front_right.Flongitudinal(actual, input) * sin(steeringAngle)
-				+ actual.front_right.Flateral(actual, input) * cos(steeringAngle);
+		double flWheel = actual.front_left.Flongitudinal(actual.body, input) * sin(steeringAngle)
+			+ actual.front_left.Flateral(actual.body, input) * cos(steeringAngle);
 
-		double rlWheel = actual.rear_left.Flateral(actual, input);
-		
-		double rrWheel = actual.rear_right.Flateral(actual, input);
+		double frWheel = actual.front_right.Flongitudinal(actual.body, input) * sin(steeringAngle)
+			+ actual.front_right.Flateral(actual.body, input) * cos(steeringAngle);
+
+		double rlWheel = actual.rear_left.Flateral(actual.body, input);
+
+		double rrWheel = actual.rear_right.Flateral(actual.body, input);
 
 		return flWheel + frWheel + rlWheel + rrWheel;
 	}
 
-	double L(controlInfluence input, state actual){
+	double L(controlInfluence input, state actual) {
 		double steeringAngle = input.steeringAngle;
 
-		double flWheelT = actual.front_left.Flongitudinal(actual, input) * cos(steeringAngle)
-						-actual.front_left.Flateral(actual, input) * sin(steeringAngle);
-		double flTM = flWheelT * (- b);
-		double flWheelL = actual.front_left.Flongitudinal(actual, input) * sin(steeringAngle)
-						+ actual.front_left.Flateral(actual, input) * cos(steeringAngle);
+		double flWheelT = actual.front_left.Flongitudinal(actual.body, input) * cos(steeringAngle)
+			- actual.front_left.Flateral(actual.body, input) * sin(steeringAngle);
+		double flTM = flWheelT * (-b);
+		double flWheelL = actual.front_left.Flongitudinal(actual.body, input) * sin(steeringAngle)
+			+ actual.front_left.Flateral(actual.body, input) * cos(steeringAngle);
 		double flLM = flWheelL * lf;
-		
-		double frWheelT = actual.front_right.Flongitudinal(actual, input) * cos(steeringAngle)
-				-actual.front_right.Flateral(actual, input) * sin(steeringAngle);
+
+		double frWheelT = actual.front_right.Flongitudinal(actual.body, input) * cos(steeringAngle)
+			- actual.front_right.Flateral(actual.body, input) * sin(steeringAngle);
 		double frTM = frWheelT * b;
-		double frWheelL = actual.front_right.Flongitudinal(actual, input) * sin(steeringAngle)
-				+ actual.front_right.Flateral(actual, input) * cos(steeringAngle);
+		double frWheelL = actual.front_right.Flongitudinal(actual.body, input) * sin(steeringAngle)
+			+ actual.front_right.Flateral(actual.body, input) * cos(steeringAngle);
 		double frLM = frWheelL * lf;
 
 
-		double rlWheelT = actual.rear_left.Flongitudinal(actual, input);
-		double rlTM = rlWheelT * (- b);
-		double rlWheelL = actual.rear_left.Flateral(actual, input);
-		double rlLM = rlWheelL * (- lr);
+		double rlWheelT = actual.rear_left.Flongitudinal(actual.body, input);
+		double rlTM = rlWheelT * (-b);
+		double rlWheelL = actual.rear_left.Flateral(actual.body, input);
+		double rlLM = rlWheelL * (-lr);
 
-		double rrWheelT = actual.rear_right.Flongitudinal(actual, input);
+		double rrWheelT = actual.rear_right.Flongitudinal(actual.body, input);
 		double rrTM = rrWheelT * b;
-		double rrWheelL = actual.rear_right.Flateral(actual, input);
-		double rrLM = rrWheelL * (- lr);
+		double rrWheelL = actual.rear_right.Flateral(actual.body, input);
+		double rrLM = rrWheelL * (-lr);
 
 		return flTM + flLM + frLM + frTM + rlTM + rlLM + rrTM + rrLM;
 	}
 
-	state Derivatives(controlInfluence input, state actual){
-		double dxdt = actual.vx * cos(actual.yaw) - actual.vy * sin(actual.yaw);
-		double dydt = actual.vx * sin(actual.yaw) + actual.vy * cos(actual.yaw);
-		double dyawdt = actual.w;
-		double dvxdt = (Flongitudinal(input, actual) / m + actual.vy * actual.w);
-		double dvydt = (Flateral(input, actual) / m - actual.vx * actual.w);
+	state Derivatives(controlInfluence input, state actual) {
+		chassis body = actual.body;
+		double dxdt = body.vx * cos(body.yaw) - body.vy * sin(body.yaw);
+		double dydt = body.vx * sin(body.yaw) + body.vy * cos(body.yaw);
+		double dyawdt = body.w;
+		double dvxdt = (Flongitudinal(input, actual) / m + body.vy * body.w);
+		double dvydt = (Flateral(input, actual) / m - body.vx * body.w);
 		double dwdt = L(input, actual) / Iz;
-		
-		FrontWheel dFLdt = actual.front_left.wheelDerivate(actual, input);
-		FrontWheel dFRdt = actual.front_right.wheelDerivate(actual, input);
-		RearWheel dRLdt = actual.rear_left.wheelDerivate(actual, input);
-		RearWheel dRRdt = actual.rear_right.wheelDerivate(actual, input);
+
+		FrontWheel dFLdt = actual.front_left.wheelDerivate(body, input);
+		FrontWheel dFRdt = actual.front_right.wheelDerivate(body, input);
+		RearWheel dRLdt = actual.rear_left.wheelDerivate(body, input);
+		RearWheel dRRdt = actual.rear_right.wheelDerivate(body, input);
 
 		return state{
 			dxdt,
@@ -346,15 +366,15 @@ public:
 		};
 	}
 
-	float getX() const { return carState.X; }
-	float getY() const { return carState.Y; }
-	float getyaw() const { return carState.yaw; }
-	float getvx() const { return carState.vx; }
-	float getvy() const { return carState.vy; }
-	float getr() const { return carState.w; }
+	float getX() const { return carState.body.X; }
+	float getY() const { return carState.body.Y; }
+	float getyaw() const { return carState.body.yaw; }
+	float getvx() const { return carState.body.vx; }
+	float getvy() const { return carState.body.vy; }
+	float getr() const { return carState.body.w; }
 	float gett() const { return t; }
 
-		void updateRK4(controlInfluence input) {
+	void updateRK4(controlInfluence input) {
 		float h = dt;
 		state k1 = Derivatives(input, carState);
 		state k2 = Derivatives(input, carState + k1 * (h / 2));
@@ -372,6 +392,7 @@ ostream& operator<<(ostream& s, const Dynamic4WheelsModel& sdbm) {
 		" " << sdbm.getY() << " " << sdbm.getyaw() <<
 		" " << sdbm.getvx() << " " << sdbm.getvy() << " " << sdbm.getr() << " }");
 }
+
 
 
 int main()
